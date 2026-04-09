@@ -22,8 +22,16 @@ let inFlightPromise: Promise<TesouroCache> | null = null
  * Fetches the Tesouro Direto CSV file
  */
 async function fetchTesouroCSV(): Promise<string> {
+  /**
+   * IMPORTANT:
+   * Next.js fetch cache is NOT used here because:
+   * - The CSV file exceeds the 2MB cache limit
+   * - This would cause cache failures and unnecessary re-fetches
+   *
+   * Instead, we rely on our own in-memory cache layer
+   */
   const response = await fetch(TESOURO_CSV_URL, {
-    next: { revalidate: 3600 },
+    cache: "no-store",
   })
 
   if (!response.ok) {
