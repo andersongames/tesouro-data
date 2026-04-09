@@ -21,3 +21,11 @@ export type TesouroCSVRow = {
   "PU Venda Manha": string
   "PU Base Manha": string
 }
+
+// Represents the in-memory cache structure
+export type TesouroCache = {
+  data: TesouroTitulo[]
+  map: Map<string, TesouroTitulo[]>
+  fetchedAt: string
+  expiresAt: number
+}
