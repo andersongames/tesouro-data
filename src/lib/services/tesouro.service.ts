@@ -60,7 +60,7 @@ async function fetchTesouroCSV(): Promise<string> {
  * Value:
  *   Array of TesouroTitulo sorted by dataBase DESC (most recent first)
  */
-function buildTituloMap(
+export function buildTituloMap(
   data: TesouroTitulo[]
 ): Map<string, TesouroTitulo[]> {
   const map = new Map<string, TesouroTitulo[]>()

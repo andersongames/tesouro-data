@@ -2,13 +2,21 @@
 
 Você vai ter 3 níveis de testes:
 
-* 🟢 **1. Unit tests**: Testes de funções puras como o parser, utilitários e partes isoladas do service.
-* 🟡 **2. Integration tests**: Focados no `tesouro.service.ts` utilizando mock de fetch para simular a API externa.
-* 🔵 **3. API tests**: Testes de ponta a ponta nas rotas `/api/titulo` e `/api/titulos`.
+🟢 **1. Unit tests**  
+* parser
+* utils
+* partes isoladas do service
+
+🟡 **2. Integration tests**
+* `tesouro.service.ts` (com mock de fetch)
+
+🔵 **3. API tests**
+* `/api/titulo`
+* `/api/titulos`
 
 # 📁 Estrutura de Pastas
 
-Sugestão simples e funcional para organizar seus arquivos de teste:
+Sugestão simples e escalável:
 
 ```text
 /src
@@ -33,59 +41,179 @@ Sugestão simples e funcional para organizar seus arquivos de teste:
 
 # 🧪 Ferramentas Recomendadas
 
-👉 **Stack padrão recomendada para Next.js:**
+👉 Stack padrão com Next.js:
 
-* **Vitest**: Extremamente rápido e compatível com a configuração do Vite/Next.
-* **Testing Library**: Útil caso decida testar a renderização do frontend (opcional).
-* **Mock de Fetch**: Pode ser feito manualmente ou usando bibliotecas como MSW.
+* **Vitest** (mais rápido que Jest)
+* **Testing Library (opcional, mais pra frontend)**
+* **MSW ou mock manual de fetch**
 
 # 🧩 Fase 1 — Unit Tests
 
 ### 📍 Parser (parseTesouroCSV)
-* ✔ **Parsing correto**: Verificar se o CSV é transformado em objetos.
-* ✔ **Conversão**: Validar string → number (float).
-* ✔ **Datas**: Garantir conversão para formato ISO.
-* ✔ **Robustez**: Ignorar linhas inválidas.
+
+**O que testar:**
+
+✅ parsing correto  
+✅ conversão de tipos (string → number)  
+✅ datas ISO  
+✅ linhas inválidas
+
+**Exemplo de cenários:**
+
+```text
+it("should parse CSV into structured objects")
+
+it("should convert numeric fields correctly")
+
+it("should normalize dates to ISO format")
+
+it("should not ignore invalid rows")
+```
 
 ### 📍 Utils (normalizeTituloKey)
-* ✔ **Normalização**: Slug consistente, sem acentos e espaços extras.
-* ✔ **Case Insensitive**: Tratar "Tesouro" e "tesouro" como iguais.
+
+**O que testar:**
+
+✅ slug consistente  
+✅ case insensitive   
+✅ espaços / acentos
+
+```text
+it("should normalize title and vencimento into consistent key")
+
+it("should ignore casing differences")
+
+it("should not remove accents and special chars")
+```
 
 ### 📍 Service (partes isoladas)
-* ✔ **buildTituloMap**: Testar se agrupa corretamente e ordena por `dataBase` descendente.
+Você pode testar funções puras como:
+
+`buildTituloMap`
+
+✅ agrupar corretamente
+✅ ordenar por dataBase DESC
+
+```text
+it("should group titles by tipo + vencimento")
+
+it("should sort items by dataBase descending")
+```
 
 # 🧪 Fase 2 — Integration (Service)
 
 📍 **tesouro.service.test.ts**
 
-O foco aqui é testar a lógica de negócio integrada ao cache:
-* 🔥 **Mock do Fetch**: Essencial para não depender do site do Tesouro Direto nos testes.
-* **Cache**: Testar se na primeira chamada ocorre o fetch (miss) e nas seguintes ele usa a memória (hit).
-* **Busca**: Validar se `findTesouroTitulo` aplica filtros de limite e data corretamente.
+Aqui você testa:
+
+👉 getTesouroData  
+👉 findTesouroTitulo
+
+🔥 IMPORTANTE: mock do fetch
+
+Você NÃO quer bater no endpoint real.
+
+## O que testar:
+
+### Cache
+
+```text
+it("should fetch data on first call (cache miss)")
+
+it("should reuse cache on subsequent calls (cache hit)")
+```
+
+### In-flight
+
+```text
+it("should reuse in-flight promise for concurrent requests")
+```
+
+### findTesouroTitulo
+
+```text
+it("should return full history for a title")
+
+it("should apply from/to filters")
+
+it("should apply limit correctly")
+
+it("should return null when not found")
+```
+
 
 # 🧪 Fase 3 — API Tests
 
-📍 **/tests/api/titulo.test.ts** e **/api/titulos.test.ts**
+### 📍 `/tests/api/titulo.test.ts`  
+### 📍 `/tests/api/titulos.test.ts`
 
-🔧 **Abordagem**: Chamar diretamente o handler da rota para validar a resposta JSON.
+### 🔧 Abordagem
 
-* ✔ **Validação**: Garantir que o **Zod** barra inputs errados (Status 400).
-* ✔ **Not Found**: Retornar Status 404 para títulos inexistentes.
-* ✔ **Sucesso**: Validar se o histórico e filtros (from, to, limit) retornam os dados esperados.
-* ✔ **Agrupamento**: Validar o comportamento do parâmetro `grouped`.
+👉 chamar diretamente o handler:
+
+```text
+await GET(new Request("http://localhost/api/titulo?..."))
+```
+
+### 📍 `/api/titulo`
+
+**Testar:**
+
+✅ validação (Zod)   
+✅ 400 (params inválidos)  
+✅ 404 (não encontrado)  
+✅ sucesso
+
+```text
+it("should return 400 for invalid params")
+
+it("should return 404 when title not found")
+
+it("should return title history successfully")
+
+it("should apply filters (from, to, limit)")
+```
+
+### 📍 ` /api/titulos`
+
+**Testar:**
+
+✅ maturity
+✅ grouped
+✅ default behavior
+
+```text
+it("should return all titles by default")
+
+it("should filter future titles")
+
+it("should filter expired titles")
+
+it("should return grouped response")
+
+it("should remove redundant fields in grouped mode")
+```
 
 # 📦 Fixtures (Muito Importante)
 
-Mantenha dados fixos para garantir que os testes sejam rápidos e determinísticos:
+Crie arquivos fixos:  
+📍 `/tests/fixtures/tesouro.sample.csv`  
+👉 pequeno (5–10 linhas)  
 
-* 📍 `/tests/fixtures/tesouro.sample.csv`: Um arquivo CSV pequeno (5-10 linhas).
-* 📍 `/tests/fixtures/tesouro.sample.json`: A versão JSON exata que você espera após o processamento da fixture acima.
+📍 `/tests/fixtures/tesouro.sample.json`  
+👉 versão já parseada
+
+# 🧠 Por que isso é importante
+
+✅ testes determinísticos  
+✅ não depende do Tesouro  
+✅ rápido
 
 # 🔌 Mock de Fetch
 
-📍 **/tests/mocks/fetch.mock.ts**
+📍 `/tests/mocks/fetch.mock.ts`
 
-Exemplo de implementação para interceptar o `fetch` global e retornar os dados da sua fixture:
+Exemplo simples:
 
 ```typescript
 export function mockFetch(csv: string) {
@@ -101,10 +229,8 @@ export function mockFetch(csv: string) {
 
 # 🏁 Ordem Recomendada de Implementação
 
-Siga este fluxo para construir com confiança:
-
-1.  ✅ **Parser tests** (Base de tudo)
-2.  ✅ **Utils tests** (Normalização)
-3.  ✅ **buildTituloMap** (Lógica de dados)
-4.  ✅ **Service** (Integração e Cache)
-5.  ✅ **API routes** (Entrega final)
+1. ✅ parser tests
+2. ✅ utils tests
+3. ✅ buildTituloMap
+4. ✅ service (com mock fetch)
+5. ✅ API routes
