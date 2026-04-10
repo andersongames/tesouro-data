@@ -1,4 +1,4 @@
-import { findTesouroTitulo } from "@/app/lib/services/tesouro.service"
+import { findTesouroTitulo } from "@/lib/services/tesouro.service"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
