@@ -10,7 +10,8 @@ export async function GET() {
 
   const titulo = await findTesouroTitulo(
     "Tesouro Selic",
-    "2028-03-01"
+    "2028-03-01",
+    { limit: 1 }
   )
 
   return Response.json(titulo)

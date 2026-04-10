@@ -29,3 +29,10 @@ export type TesouroCache = {
   fetchedAt: string
   expiresAt: number
 }
+
+// Represents the result of a historical query for a Tesouro title
+export type TesouroTituloHistorico = {
+  items: TesouroTitulo[]
+  fetchedAt: string
+  total: number // total items before filtering/limit
+}

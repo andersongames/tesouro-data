@@ -1,5 +1,5 @@
 import { parseTesouroCSV } from "../parsers/tesouro.parser"
-import { TesouroCache, TesouroTitulo } from "../types/tesouro.types"
+import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
 
 const TESOURO_CSV_URL =
@@ -168,19 +168,36 @@ export async function getTesouroData(): Promise<TesouroCache> {
 }
 
 /**
- * Finds a Tesouro title using normalized key
+ * Finds historical entries for a Tesouro title using normalized key
  *
- * If dataBase is provided:
- *   - returns the exact match for that date
+ * Supports optional filtering:
+ *   - from: filters entries with dataBase >= from (inclusive)
+ *   - to: filters entries with dataBase <= to (inclusive)
+ *   - limit: limits the number of returned entries (after filtering)
  *
- * If dataBase is NOT provided:
- *   - returns the most recent entry (index 0)
+ * Behavior:
+ *   - Results are always sorted by dataBase DESC (most recent first)
+ *   - If no filters are provided, returns full history
+ *   - Filters are applied before limit
+ *
+ * Returns:
+ *   - Filtered list of entries
+ *   - fetchedAt timestamp (when data was retrieved)
+ *   - total number of items before filters/limit
+ *
+ * Notes:
+ *   - Dates must be in ISO format (YYYY-MM-DD)
+ *   - If no entries are found, returns null
  */
 export async function findTesouroTitulo(
   tipo: string,
   vencimentoISO: string,
-  dataBase?: string
-) {
+  options?: {
+    from?: string
+    to?: string
+    limit?: number
+  }
+): Promise<TesouroTituloHistorico | null> {
   const { map, fetchedAt } = await getTesouroData()
 
   const key = normalizeTituloKey(tipo, vencimentoISO)
@@ -191,27 +208,36 @@ export async function findTesouroTitulo(
     return null
   }
 
+  let filtered = list
+
   /**
-   * If no dataBase is provided, return the most recent entry
+   * Apply "from" filter (inclusive)
    */
-  if (!dataBase) {
-    return {
-      ...list[0],
-      fetchedAt,
-    }
+  if (options?.from) {
+    filtered = filtered.filter(
+      (item) => item.dataBase >= options.from!
+    )
   }
 
   /**
-   * Find exact match for the requested dataBase
+   * Apply "to" filter (inclusive)
    */
-  const match = list.find((item) => item.dataBase === dataBase)
+  if (options?.to) {
+    filtered = filtered.filter(
+      (item) => item.dataBase <= options.to!
+    )
+  }
 
-  if (!match) {
-    return null
+  /**
+   * Apply limit AFTER filtering
+   */
+  if (options?.limit && options.limit > 0) {
+    filtered = filtered.slice(0, options.limit)
   }
 
   return {
-    ...match,
+    items: filtered,
     fetchedAt,
+    total: list.length,
   }
 }
