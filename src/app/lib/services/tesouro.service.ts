@@ -23,6 +23,12 @@ let inFlightPromise: Promise<TesouroCache> | null = null
  */
 async function fetchTesouroCSV(): Promise<string> {
   /**
+   * Log only when a real download is happening
+   * This function is only called when cache is missed or expired
+   */
+  console.log("[TesouroData] Downloading CSV from source...")
+
+  /**
    * IMPORTANT:
    * Next.js fetch cache is NOT used here because:
    * - The CSV file exceeds the 2MB cache limit
@@ -123,6 +129,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
 
   // Return cache if valid
   if (cache && cache.expiresAt > now) {
+    console.log("[TesouroData] Cache HIT")
     return cache
   }
 
@@ -137,6 +144,8 @@ export async function getTesouroData(): Promise<TesouroCache> {
   /**
    * Start a new fetch
    */
+  console.log("[TesouroData] Cache MISS - fetching new data")
+
   inFlightPromise = loadTesouroData()
     .then((result) => {
       cache = result
