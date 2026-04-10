@@ -102,7 +102,7 @@ it("should sort items by dataBase descending")
 
 # 🧪 Fase 2 — Integration (Service)
 
-📍 **tesouro.service.test.ts**
+📍 `tesouro.service.test.ts`
 
 Aqui você testa:
 
