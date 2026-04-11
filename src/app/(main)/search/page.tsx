@@ -45,8 +45,8 @@ export default async function SearchPage() {
   const { tipos, vencimentosMap } = extractOptions(map)
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-xl">
+    <main className="max-w-5xl mx-auto px-4 w-full">
+      <div className="max-w-xl mx-auto w-full">
         <h1 className="text-2xl font-semibold text-text-highlight mb-6">
           Buscar Título do Tesouro
         </h1>

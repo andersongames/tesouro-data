@@ -1,9 +1,14 @@
-import Skeleton from "../components/ui/Skeleton";
+import Skeleton from "@/app/components/ui/Skeleton";
 
+/**
+ * Loading skeleton for /search page
+ *
+ * Matches layout spacing (navbar + content)
+ */
 export default function Loading() {
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-xl space-y-6">
+    <main className="max-w-5xl mx-auto px-4 py-10">
+      <div className="max-w-xl space-y-6">
         {/* Title */}
         <Skeleton className="h-6 w-1/2" />
 
