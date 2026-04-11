@@ -32,6 +32,19 @@ export default function Combobox({
   const ref = useRef<HTMLDivElement>(null)
 
   /**
+   * Find selected option (if any)
+   */
+  const selectedOption = options.find((opt) => opt.value === value)
+
+  /**
+   * Input display logic:
+   * - If user is typing → show query
+   * - If selected → show label
+   * - Otherwise → empty
+   */
+  const displayValue = query || selectedOption?.label || ""
+
+  /**
    * Close dropdown when clicking outside
    */
   useEffect(() => {
@@ -52,7 +65,7 @@ export default function Combobox({
     if (!query) return options
 
     return options.filter((opt) =>
-      opt.value.toLowerCase().includes(query.toLowerCase())
+      opt.label.toLowerCase().includes(query.toLowerCase())
     )
   }, [query, options])
 
@@ -71,7 +84,7 @@ export default function Combobox({
       <input
         id={name}
         name={name}
-        value={value || query}
+        value={displayValue || query}
         disabled={disabled}
         placeholder={placeholder}
         onFocus={() => setOpen(true)}
