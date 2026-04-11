@@ -7,8 +7,8 @@ import Skeleton from "@/app/components/ui/Skeleton";
  */
 export default function Loading() {
   return (
-    <main className="max-w-5xl mx-auto px-4 py-10">
-      <div className="max-w-xl space-y-6">
+    <main className="max-w-5xl mx-auto px-4 w-full py-10">
+      <div className="max-w-xl mx-auto w-full space-y-6">
         {/* Title */}
         <Skeleton className="h-6 w-1/2" />
 
