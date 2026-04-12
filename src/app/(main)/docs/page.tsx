@@ -23,7 +23,7 @@ export default async function DocsPage() {
   const baseUrl = await getBaseUrl()
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+    <main className="max-w-5xl w-full mx-auto px-4 py-10 space-y-10">
       {/* Title */}
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-text-highlight">

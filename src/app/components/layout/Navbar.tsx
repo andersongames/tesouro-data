@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 
 /**
@@ -12,14 +13,17 @@ export default function Navbar() {
     <header className="w-full border-b border-border bg-bg-secondary">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo / Title */}
-        <span className="text-text-highlight font-semibold">
-          Tesouro Data
-        </span>
+        <div className="flex items-center gap-2">
+          <Image src='/logo-small.png' alt="logo" width={32} height={32} />
+          <span className="text-text-highlight font-semibold">
+            Tesouro Data
+          </span>
+        </div>
 
         {/* Navigation links */}
         <nav className="flex items-center gap-4 text-sm">
           <Link
-            href="/search"
+            href="/"
             className="text-text-secondary hover:text-text-highlight transition"
           >
             Buscar
