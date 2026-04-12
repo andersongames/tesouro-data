@@ -25,6 +25,7 @@ export default function Navbar() {
           <Link
             href="/"
             className="text-text-secondary hover:text-text-highlight transition"
+            title="Buscar título"
           >
             Buscar
           </Link>
@@ -32,6 +33,7 @@ export default function Navbar() {
           <Link
             href="/docs"
             className="text-text-secondary hover:text-text-highlight transition"
+            title="Documentação"
           >
             Docs
           </Link>

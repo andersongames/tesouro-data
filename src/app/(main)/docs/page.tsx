@@ -1,4 +1,6 @@
 import { getBaseUrl } from "@/lib/server/url"
+import { getTesouroData } from "@/lib/services/tesouro.service"
+import { formatDateBR } from "@/lib/utils/date"
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -21,6 +23,7 @@ export const metadata: Metadata = {
  */
 export default async function DocsPage() {
   const baseUrl = await getBaseUrl()
+  const { latestDataBase } = await getTesouroData()
 
   return (
     <main className="max-w-5xl w-full mx-auto px-4 py-10 space-y-10">
@@ -44,6 +47,51 @@ export default async function DocsPage() {
           Esta aplicação permite consultar dados de títulos do Tesouro Direto
           de forma simples, com foco em performance e facilidade de integração.
         </p>
+      </section>
+
+      {/* ========================= */}
+      {/* DATA SOURCE */}
+      {/* ========================= */}
+      <section className="space-y-3">
+        <h2 className="text-xl font-medium text-text-highlight">
+          Fonte dos dados
+        </h2>
+
+        <p className="text-text-secondary">
+          Os dados utilizados nesta aplicação são fornecidos oficialmente pelo Tesouro Nacional,
+          através do portal Tesouro Transparente.
+        </p>
+
+        <p className="text-text-secondary">
+          O dataset contém informações diárias sobre taxas e preços dos títulos do Tesouro Direto.
+        </p>
+
+        <a
+          href="https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-accent hover:text-text-highlight transition text-sm"
+        >
+          Acessar página oficial do dataset →
+        </a>
+
+        <div className="bg-bg-secondary border border-border rounded-lg p-3 text-xs break-all">
+          https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1
+        </div>
+
+        <p className="text-text-secondary text-sm">
+          Os dados são atualizados diariamente e processados pela aplicação para otimizar
+          consultas e integração via API.
+        </p>
+
+        {latestDataBase && (
+          <p className="text-text-secondary text-sm">
+            Última atualização disponível no dataset:{" "}
+            <strong className="text-text-highlight">
+              {formatDateBR(latestDataBase)}
+            </strong>
+          </p>
+        )}
       </section>
 
       {/* Section: Search */}
