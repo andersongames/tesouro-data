@@ -28,6 +28,7 @@ export type TesouroCache = {
   map: Map<string, TesouroTitulo[]>
   fetchedAt: string
   expiresAt: number
+  latestDataBase: string | null
 }
 
 // Represents the result of a historical query for a Tesouro title

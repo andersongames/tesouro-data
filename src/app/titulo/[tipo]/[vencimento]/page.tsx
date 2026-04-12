@@ -1,6 +1,7 @@
 import { findTesouroTitulo } from "@/lib/services/tesouro.service"
 import { notFound } from "next/navigation"
 import { formatDateBR } from "@/lib/utils/date"
+import Link from "next/link"
 
 /**
  * Page params type
@@ -100,7 +101,7 @@ export default async function TituloPage({
       </footer>
 
       {/* History (optional) */}
-      {showHistory && (
+      {showHistory ? (
         <section className="mt-6">
           <h2 className="text-text-highlight font-medium mb-2">
             Histórico
@@ -143,6 +144,14 @@ export default async function TituloPage({
             </table>
           </div>
         </section>
+      ) : (
+        <Link
+          href={`/titulo/${encodeURIComponent(decodedTipo)}/${vencimento}?history=true`}
+            className="text-xs text-accent block text-right hover:text-text-highlight transition"
+            title="Mostrar histórico"
+        >
+          Histórico
+        </Link>
       )}
     </main>
   )

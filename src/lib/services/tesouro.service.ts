@@ -99,6 +99,27 @@ export function buildTituloMap(
 }
 
 /**
+ * Extracts the most recent "dataBase" from parsed data
+ *
+ * Assumes:
+ * - dataBase is in ISO format (YYYY-MM-DD)
+ * - string comparison works for ordering
+ */
+function getLatestDataBase(data: TesouroTitulo[]): string | null {
+  if (!data.length) return null
+
+  let latest = data[0].dataBase
+
+  for (const item of data) {
+    if (item.dataBase > latest) {
+      latest = item.dataBase
+    }
+  }
+
+  return latest
+}
+
+/**
  * Loads fresh data (fetch + parse + index)
  */
 async function loadTesouroData(): Promise<TesouroCache> {
@@ -107,12 +128,18 @@ async function loadTesouroData(): Promise<TesouroCache> {
 
   const map = buildTituloMap(parsed)
 
+  /**
+   * Determine latest available data date from dataset
+   */
+  const latestDataBase = getLatestDataBase(parsed)
+
   const fetchedAt = new Date().toISOString()
 
   return {
     data: parsed,
     map,
     fetchedAt,
+    latestDataBase,
     expiresAt: Date.now() + CACHE_TTL,
   }
 }
@@ -126,10 +153,24 @@ async function loadTesouroData(): Promise<TesouroCache> {
  */
 export async function getTesouroData(): Promise<TesouroCache> {
   const now = Date.now()
+  const today = new Date().toISOString().slice(0, 10)
 
-  // Return cache if valid
+  /**
+   * STRONG CACHE HIT:
+   * If cache exists and already contains today's data,
+   * skip TTL and always reuse it
+   */
+  if (cache && cache.latestDataBase === today) {
+    console.log("[TesouroData] Cache HIT (fresh daily data)")
+    return cache
+  }
+
+  /**
+   * NORMAL CACHE HIT (TTL-based):
+   * Used when data is from previous day
+   */
   if (cache && cache.expiresAt > now) {
-    console.log("[TesouroData] Cache HIT")
+    console.log("[TesouroData] Cache HIT (TTL)")
     return cache
   }
 
