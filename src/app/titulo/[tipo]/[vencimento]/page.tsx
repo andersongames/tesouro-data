@@ -2,6 +2,7 @@ import { findTesouroTitulo } from "@/lib/services/tesouro.service"
 import { notFound } from "next/navigation"
 import { formatDateBR } from "@/lib/utils/date"
 import Link from "next/link"
+import { Metadata } from "next"
 
 /**
  * Page params type
@@ -15,6 +16,21 @@ type Props = {
     history?: string
   }>
 }
+
+export async function generateMetadata({
+  params,
+}: Props): Promise<Metadata> {
+  const { tipo, vencimento } = await params
+
+  const decodedTipo = decodeURIComponent(tipo)
+
+  return {
+    title: `${decodedTipo} (${vencimento})`,
+    description: `Dados atualizados do ${decodedTipo} com vencimento em ${vencimento}, incluindo taxas e preços.`,
+  }
+}
+
+export const dynamic = "force-dynamic"
 
 /**
  * Minimal SSR page optimized for:

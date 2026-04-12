@@ -1,6 +1,13 @@
 import { getTesouroData } from "@/lib/services/tesouro.service"
 import SearchForm from "@/app/components/search/SearchForm"
 import { TesouroTitulo } from "@/lib/types/tesouro.types"
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Buscar Títulos",
+  description:
+    "Busque títulos do Tesouro Direto por tipo e vencimento de forma rápida.",
+}
 
 /**
  * Extract unique "tipo" and "vencimento"

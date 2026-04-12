@@ -1,4 +1,11 @@
 import { getBaseUrl } from "@/lib/server/url"
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Documentação",
+  description:
+    "Aprenda a consultar e integrar dados do Tesouro Direto via URL, scraping ou API.",
+}
 
 /**
  * Documentation page
