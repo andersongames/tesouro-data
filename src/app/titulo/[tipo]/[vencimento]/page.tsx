@@ -49,13 +49,14 @@ export default async function TituloPage({
 
   const result = await findTesouroTitulo(decodedTipo, vencimento)
 
-  console.log(decodedTipo, vencimento, result)
-
   if (!result) {
     return notFound()
   }
 
   const latest = result.items[0]
+
+  const year = vencimento.split("-")[0]
+  const combo = `${decodedTipo} ${year}`
 
   return (
     <main className="p-6 max-w-3xl mx-auto space-y-6">
@@ -68,6 +69,8 @@ export default async function TituloPage({
         <p id="vencimento" className="text-text-secondary">
           Vencimento: {formatDateBR(vencimento)}
         </p>
+
+        <p id="combo" className="text-xs text-text-secondary">{combo}</p>
       </header>
 
       {/* Latest data (default view) */}
