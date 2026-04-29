@@ -42,12 +42,17 @@ Go to `/search`, select:
 You can access any title directly:
 `/titulo/{tipo}/{vencimento}`
 
-**Example:**
-`/titulo/Tesouro%20Prefixado/2029-01-01`
+The `vencimento` parameter supports two formats:
 
-### History
-To include full historical data:
-`?history=true`
+- ISO: `YYYY-MM-DD`
+- BR: `DD-MM-YYYY`
+
+**Examples:**
+
+`/titulo/Tesouro%20Prefixado/2029-01-01`  
+`/titulo/Tesouro%20Prefixado/01-01-2029`
+
+> Other formats (e.g., `DD/MM/YYYY`) are not supported.
 
 ## 🤖 API Usage
 

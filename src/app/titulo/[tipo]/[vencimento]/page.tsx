@@ -1,6 +1,6 @@
 import { findTesouroTitulo } from "@/lib/services/tesouro.service"
 import { notFound } from "next/navigation"
-import { formatDateBR } from "@/lib/utils/date"
+import { formatDateBR, normalizeToISODate } from "@/lib/utils/date"
 import Link from "next/link"
 import { Metadata } from "next"
 
@@ -47,7 +47,21 @@ export default async function TituloPage({
   const decodedTipo = decodeURIComponent(tipo)
   const showHistory = history === "true"
 
-  const result = await findTesouroTitulo(decodedTipo, vencimento)
+  /**
+   * Normalize date input:
+   * - Accepts ISO (YYYY-MM-DD)
+   * - Accepts BR (DD-MM-YYYY)
+   */
+  const vencimentoISO = normalizeToISODate(vencimento)
+
+  /**
+   * If date format is invalid, return 404
+   */
+  if (!vencimentoISO) {
+    return notFound()
+  }
+
+  const result = await findTesouroTitulo(decodedTipo, vencimentoISO)
 
   if (!result) {
     return notFound()
@@ -55,7 +69,7 @@ export default async function TituloPage({
 
   const latest = result.items[0]
 
-  const year = vencimento.split("-")[0]
+  const year = vencimentoISO.split("-")[0]
   const combo = `${decodedTipo} ${year}`
 
   return (
@@ -67,7 +81,7 @@ export default async function TituloPage({
         </h1>
 
         <p id="vencimento" className="text-text-secondary">
-          Vencimento: {formatDateBR(vencimento)}
+          Vencimento: {formatDateBR(vencimentoISO)}
         </p>
 
         <p id="combo" className="text-xs text-text-secondary">{combo}</p>
@@ -165,9 +179,9 @@ export default async function TituloPage({
         </section>
       ) : (
         <Link
-          href={`/titulo/${encodeURIComponent(decodedTipo)}/${vencimento}?history=true`}
-            className="text-xs text-accent block text-right hover:text-text-highlight transition"
-            title="Mostrar histórico"
+          href={`/titulo/${encodeURIComponent(decodedTipo)}/${vencimentoISO}?history=true`}
+          className="text-xs text-accent block text-right hover:text-text-highlight transition"
+          title="Mostrar histórico"
         >
           Histórico
         </Link>

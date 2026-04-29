@@ -125,12 +125,29 @@ export default async function DocsPage() {
         </code>
 
         <p className="text-text-secondary">
-          Exemplo:
+          O parâmetro <strong>vencimento</strong> aceita dois formatos:
+        </p>
+
+        <ul className="list-disc pl-5 text-text-secondary text-sm space-y-1">
+          <li>ISO: <code>YYYY-MM-DD</code></li>
+          <li>BR: <code>DD-MM-YYYY</code></li>
+        </ul>
+
+        <p className="text-text-secondary">
+          Exemplos:
         </p>
 
         <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
           /titulo/Tesouro%20Prefixado/2029-01-01
         </code>
+
+        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
+          /titulo/Tesouro%20Prefixado/01-01-2029
+        </code>
+
+        <p className="text-text-secondary text-sm">
+          Outros formatos (ex: <code>DD/MM/YYYY</code>) não são suportados.
+        </p>
       </section>
 
       {/* Section: History */}
@@ -143,8 +160,12 @@ export default async function DocsPage() {
           Para obter o histórico completo do título, utilize o parâmetro:
         </p>
 
+        <ul className="list-disc pl-5 text-text-secondary text-sm space-y-1">
+          <li><code>history=true</code></li>
+        </ul>
+
         <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          ?history=true
+          /titulo/Tesouro%20Prefixado/01-01-2029?history=true
         </code>
       </section>
 
