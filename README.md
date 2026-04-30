@@ -62,6 +62,20 @@ Returns historical data for a specific title.
 #### Request
 `/api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01`
 
+#### Date formats
+The `vencimento` parameter supports:
+
+- ISO format: `YYYY-MM-DD`
+- Brazilian format with hyphen: `DD-MM-YYYY`
+
+#### Examples
+
+`/api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01`
+
+`/api/titulo?tipo=Tesouro%20Prefixado&vencimento=01-01-2029`
+
+> The same formats are also supported for `from` and `to` filters.
+
 #### Response
 ```json
 {

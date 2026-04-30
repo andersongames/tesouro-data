@@ -243,10 +243,28 @@ console.log({ titulo, taxa });`}
         <p className="text-text-secondary">Parâmetros:</p>
         <ul className="list-disc pl-5 text-text-secondary text-sm">
           <li>tipo (string)</li>
-          <li>vencimento (YYYY-MM-DD)</li>
+          <li>vencimento (YYYY-MM-DD ou DD-MM-YYYY)</li>
           <li>from / to (opcional)</li>
           <li>limit (opcional)</li>
         </ul>
+
+        <p className="text-text-secondary text-sm">
+          Os parâmetros <strong>vencimento</strong>, <strong>from</strong> e <strong>to</strong>, aceitam:
+          <br />• Formato ISO: <code>YYYY-MM-DD</code>
+          <br />• Formato BR com hífen: <code>DD-MM-YYYY</code>
+        </p>
+
+        <p className="text-text-secondary">
+          Exemplos:
+        </p>
+
+        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
+          /api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01
+        </code>
+
+        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
+          /api/titulo?tipo=Tesouro%20Prefixado&vencimento=01-01-2029
+        </code>
 
         <p className="text-text-secondary">Resposta:</p>
 

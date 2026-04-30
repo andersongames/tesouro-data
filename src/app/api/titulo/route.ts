@@ -1,13 +1,18 @@
 import { findTesouroTitulo } from "@/lib/services/tesouro.service"
+import { normalizeToISODate } from "@/lib/utils/date"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 /**
  * Schema for validating query params
+ *
+ * NOTE:
+ * - Date format validation is handled separately using normalizeToISODate
+ * - Zod only ensures correct types and presence
  */
 const querySchema = z.object({
   tipo: z.string().min(1),
-  vencimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // ISO date
+  vencimento: z.string().min(1), // ISO date
   from: z.string().optional(),
   to: z.string().optional(),
   limit: z.coerce.number().int().positive().optional(),
@@ -43,11 +48,51 @@ export async function GET(req: NextRequest) {
     const { tipo, vencimento, from, to, limit } = parsed.data
 
     /**
-     * Call service layer with filters
+     * Normalize date inputs to ISO format
+     *
+     * Supports:
+     * - ISO (YYYY-MM-DD)
+     * - BR  (DD-MM-YYYY)
      */
-    const result = await findTesouroTitulo(tipo, vencimento, {
-      from,
-      to,
+    const normalizedVencimento = normalizeToISODate(vencimento)
+
+    if (!normalizedVencimento) {
+      return NextResponse.json(
+        {
+          error: "Invalid 'vencimento' format",
+          message:
+            "Expected YYYY-MM-DD or DD-MM-YYYY",
+        },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * Optional filters normalization
+     */
+    const parsedFrom = from ? normalizeToISODate(from) : null
+    const normalizedFrom = parsedFrom ?? undefined
+
+    const parsedTo = to ? normalizeToISODate(to) : null
+    const normalizedTo = parsedTo ?? undefined
+
+    if ((from && !normalizedFrom) || (to && !normalizedTo)) {
+      return NextResponse.json(
+        {
+          error: "Invalid date range",
+          message:
+            "'from' and 'to' must be in YYYY-MM-DD or DD-MM-YYYY format",
+        },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * Call service layer with normalized ISO dates and filters
+     */
+    const result = await findTesouroTitulo(tipo, normalizedVencimento, {
+      from: normalizedFrom,
+      to: normalizedTo,
       limit,
     })
 
