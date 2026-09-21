@@ -179,6 +179,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
    * This avoids multiple concurrent downloads
    */
   if (inFlightPromise) {
+    console.log("[TesouroData] In Flight Promise - fetch is already in progress, reusing it.")
     return inFlightPromise
   }
 
