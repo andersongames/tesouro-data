@@ -43,6 +43,46 @@ describe("tesouro.service (integration)", () => {
 
   /**
    * -------------------------------
+   * HEAVY CONCURRENT REQUESTS TEST (Cache Stampede / Rain of Requests)
+   * -------------------------------
+   */
+
+  it("should handle a heavy rain of simultaneous requests and trigger fetch only once", async () => {
+    const { getTesouroData } = await import("@/lib/services/tesouro.service")
+
+    // Mock fetch with a slight artificial delay to simulate network latency
+    // and force race conditions among concurrent callers.
+    const slowMockCSV = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return {
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode(sampleCSV).buffer,
+      } as Response
+    }
+
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(slowMockCSV))
+
+    // Trigger a heavy rain of 20 simultaneous requests
+    const concurrentRequests = Array.from({ length: 20 }, () => getTesouroData())
+
+    const results = await Promise.all(concurrentRequests)
+
+    // Ensure all requests resolved successfully
+    expect(results.length).toBe(20)
+    results.forEach((result) => {
+      expect(result).toBeDefined()
+      expect(result.data.length).toBeGreaterThan(0)
+    })
+
+    /**
+     * Even under a heavy load of 20 concurrent requests,
+     * the external fetch must be executed exactly once due to request coalescing/cache.
+     */
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * -------------------------------
    * CACHE TESTS
    * -------------------------------
    */
