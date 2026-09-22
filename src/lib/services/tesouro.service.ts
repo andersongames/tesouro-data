@@ -99,6 +99,8 @@ const getCachedTotalChunks = async (): Promise<number> => {
   try {
     return await unstable_cache(
       async () => {
+        // If this inner function runs, it means the cache was either a MISS or EXPIRED
+        console.log("[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh total chunks")
         const chunks = await getLocalChunks()
         return chunks.length
       },
@@ -120,6 +122,7 @@ const getCachedChunkByIndex = async (chunkIndex: number): Promise<string> => {
   try {
     return await unstable_cache(
       async () => {
+        console.log(`[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh chunk ${chunkIndex}`)
         const chunks = await getLocalChunks()
         return chunks[chunkIndex] || ""
       },
