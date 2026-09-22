@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache"
 import { parseTesouroCSV } from "../parsers/tesouro.parser"
 import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
@@ -5,37 +6,19 @@ import { normalizeTituloKey } from "../utils/tesouro-key"
 const TESOURO_CSV_URL =
   "https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/precotaxatesourodireto.csv"
 
-// Cache TTL (1 hour)
-const CACHE_TTL = 1000 * 60 * 60
+// Cache TTL set to 1 hour (expressed in seconds for unstable_cache)
+const CACHE_TTL_SECONDS = 60 * 60
+
+// Maximum lines per chunk to keep each cached payload safely under Next.js' ~2MB limit.
+const MAX_LINES_PER_CHUNK = 19_173
 
 /**
- * In-memory cache structure
+ * Fetches the raw Tesouro Direto CSV file from the official source.
+ * Logs only when an actual external HTTP request occurs.
  */
-let cache: TesouroCache | null = null
-
-/**
- * Used to prevent multiple simultaneous fetches
- */
-let inFlightPromise: Promise<TesouroCache> | null = null
-
-/**
- * Fetches the Tesouro Direto CSV file
- */
-async function fetchTesouroCSV(): Promise<string> {
-  /**
-   * Log only when a real download is happening
-   * This function is only called when cache is missed or expired
-   */
+async function fetchRawTesouroCSV(): Promise<string> {
   console.log("[TesouroData] Downloading CSV from source...")
 
-  /**
-   * IMPORTANT:
-   * Next.js fetch cache is NOT used here because:
-   * - The CSV file exceeds the 2MB cache limit
-   * - This would cause cache failures and unnecessary re-fetches
-   *
-   * Instead, we rely on our own in-memory cache layer
-   */
   const response = await fetch(TESOURO_CSV_URL, {
     cache: "no-store",
   })
@@ -49,6 +32,133 @@ async function fetchTesouroCSV(): Promise<string> {
 
   return decoder.decode(buffer)
 }
+
+/**
+ * Fetches the CSV and splits it into an array of text chunks.
+ * Each chunk is guaranteed to stay below the 2MB cache restriction.
+ */
+export async function fetchAndChunkCSV(): Promise<{ chunks: string[]; totalChunks: number }> {
+  const fullCsv = await fetchRawTesouroCSV()
+  const lines = fullCsv.split(/\r?\n/)
+  const chunks: string[] = []
+
+  console.log("[TesouroData] Splitting CSV in chunks...")
+
+  for (let i = 0; i < lines.length; i += MAX_LINES_PER_CHUNK) {
+    const chunkLines = lines.slice(i, i + MAX_LINES_PER_CHUNK)
+
+    /**
+     * Skip empty trailing chunk fragments caused by the final newline.
+     */
+    const chunk = chunkLines.join("\n")
+
+    if (chunk.length > 0) {
+      chunks.push(chunk)
+    }
+  }
+
+  return {
+    chunks,
+    totalChunks: chunks.length,
+  }
+}
+
+/**
+ * In a full Next.js runtime, unstable_cache acts as the global coalescing layer
+ * shared across serverless instances. In tests or other non-Next execution contexts,
+ * we fall back to a local promise cache so the service keeps the same behavior without
+ * crashing on the missing incremental cache runtime.
+ * 
+ * --- MARKED FOR DELETE - KEEPING FOR NOW AS REFERENCE ---
+ */
+const getCachedCsvBundle = (() => {
+  const localState: {
+    result: { chunks: string[]; totalChunks: number } | null
+    inFlightPromise: Promise<{ chunks: string[]; totalChunks: number }> | null
+  } = {
+    result: null,
+    inFlightPromise: null,
+  }
+
+  const loadBundle = async (): Promise<{ chunks: string[]; totalChunks: number }> => {
+    try {
+      return await unstable_cache(
+        async () => {
+          const { chunks, totalChunks } = await fetchAndChunkCSV()
+          return { chunks, totalChunks }
+        },
+        ["tesouro-csv-bundle"],
+        {
+          revalidate: CACHE_TTL_SECONDS,
+          tags: ["tesouro-cache"],
+        }
+      )()
+    } catch (error) {
+      console.log(`[TesouroData] loadBundle error: ${error}`)
+
+      if (localState.result) {
+        return localState.result
+      }
+
+      if (localState.inFlightPromise) {
+        return localState.inFlightPromise
+      }
+
+      localState.inFlightPromise = fetchAndChunkCSV()
+        .then((bundle) => {
+          localState.result = bundle
+          return bundle
+        })
+        .finally(() => {
+          localState.inFlightPromise = null
+        })
+
+      return localState.inFlightPromise
+    }
+  }
+
+  return {
+    async getTotalChunks(): Promise<{ totalChunks: number }> {
+      const bundle = await loadBundle()
+      return { totalChunks: bundle.totalChunks }
+    },
+    async getChunk(chunkIndex: number): Promise<string> {
+      const bundle = await loadBundle()
+      return bundle.chunks[chunkIndex] || ""
+    },
+  }
+})()
+
+/**
+ * Cached function to retrieve total lines and chunk count.
+ */
+const getCachedTotalChunks = unstable_cache(
+  async () => {
+    const { totalChunks } = await fetchAndChunkCSV()
+    return totalChunks
+  },
+  ["tesouro-total-chunks"],
+  {
+    revalidate: CACHE_TTL_SECONDS,
+    tags: ["tesouro-cache"],
+  }
+)
+
+/**
+ * Cached function to retrieve a specific chunk by its index.
+ * The index is automatically part of the cache key generation in Next.js.
+ */
+const getCachedChunkByIndex = unstable_cache(
+  async (chunkIndex: number) => {
+    const { chunks } = await fetchAndChunkCSV()
+    return chunks[chunkIndex] || ""
+  },
+  ["tesouro-chunk-content"],
+  {
+    revalidate: CACHE_TTL_SECONDS,
+    tags: ["tesouro-cache"],
+  }
+)
 
 /**
  * Builds a Map for O(1) lookup where each key contains
@@ -120,19 +230,49 @@ function getLatestDataBase(data: TesouroTitulo[]): string | null {
 }
 
 /**
- * Loads fresh data (fetch + parse + index)
+ * Main function to retrieve and assemble cached Tesouro data.
+ * Replaces the local in-memory lock with a distributed Next.js cache.
  */
-async function loadTesouroData(): Promise<TesouroCache> {
-  const csv = await fetchTesouroCSV()
-  const parsed = parseTesouroCSV(csv)
-
-  const map = buildTituloMap(parsed)
+export async function getTesouroData(): Promise<TesouroCache> {
+  /**
+   * 1. Get total number of chunks from the distributed cache.
+   * This serves as the global coalescing point across serverless instances.
+   */
+  const totalChunks = await getCachedTotalChunks()
 
   /**
-   * Determine latest available data date from dataset
+   * If the dataset is empty, return an empty cache payload without parsing an invalid CSV string.
    */
-  const latestDataBase = getLatestDataBase(parsed)
+  if (totalChunks === 0) {
+    const fetchedAt = new Date().toISOString()
 
+    return {
+      data: [],
+      map: new Map<string, TesouroTitulo[]>(),
+      fetchedAt,
+      latestDataBase: null,
+      expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
+    }
+  }
+
+  /**
+   * 2. Fetch all chunks in parallel from the cache layers.
+   */
+  const chunkPromises: Promise<string>[] = []
+
+  for (let i = 0; i < totalChunks; i++) {
+    chunkPromises.push(getCachedChunkByIndex(i))
+  }
+
+  const resolvedChunks = await Promise.all(chunkPromises)
+
+  /**
+   * 3. Reassemble the full CSV string in memory and parse it using the existing parser.
+   */
+  const fullCsvString = resolvedChunks.join("\n")
+  const parsed = parseTesouroCSV(fullCsvString)
+  const map = buildTituloMap(parsed)
+  const latestDataBase = getLatestDataBase(parsed)
   const fetchedAt = new Date().toISOString()
 
   return {
@@ -140,82 +280,8 @@ async function loadTesouroData(): Promise<TesouroCache> {
     map,
     fetchedAt,
     latestDataBase,
-    expiresAt: Date.now() + CACHE_TTL,
+    expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
   }
-}
-
-/**
- * Main function to get cached Tesouro data
- *
- * - Uses in-memory cache
- * - Prevents duplicate fetches
- * - Automatically refreshes after TTL
- */
-export async function getTesouroData(): Promise<TesouroCache> {
-  const now = Date.now()
-  const today = new Date().toISOString().slice(0, 10)
-
-  /**
-   * STRONG CACHE HIT:
-   * If cache exists and already contains today's data,
-   * skip TTL and always reuse it
-   */
-  if (cache && cache.latestDataBase === today) {
-    console.log("[TesouroData] Cache HIT (fresh daily data)")
-    return cache
-  }
-
-  /**
-   * NORMAL CACHE HIT (TTL-based):
-   * Used when data is from previous day
-   */
-  if (cache && cache.expiresAt > now) {
-    console.log("[TesouroData] Cache HIT (TTL)")
-    return cache
-  }
-
-  /**
-   * If a fetch is already in progress, reuse it
-   * This avoids multiple concurrent downloads
-   */
-  if (inFlightPromise) {
-    console.log("[TesouroData] In Flight Promise - fetch is already in progress, reusing it.")
-    return inFlightPromise
-  }
-
-  /**
-   * Start a new fetch
-   */
-  console.log("[TesouroData] Cache MISS - fetching new data")
-
-  inFlightPromise = loadTesouroData()
-    .then((result) => {
-      cache = result
-      return result
-    })
-    .catch((error) => {
-      /**
-       * Fallback strategy:
-       * If fetching fresh data fails, return stale cache (if available)
-       * This improves resilience against temporary external failures
-       */
-      if (cache) {
-        console.warn("[TesouroData] Using stale cache due to fetch error", {
-          error,
-          fetchedAt: cache.fetchedAt,
-          expired: cache.expiresAt < Date.now(),
-        })
-
-        return cache
-      }
-
-      throw error
-    })
-    .finally(() => {
-      inFlightPromise = null
-    })
-
-  return inFlightPromise
 }
 
 /**
