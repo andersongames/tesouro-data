@@ -13,6 +13,18 @@ const CACHE_TTL_SECONDS = 60 * 60
 const MAX_LINES_PER_CHUNK = 19_173
 
 /**
+ * Local memory state used as a fallback for test environments or non-Next runtimes
+ * where unstable_cache runtime is unavailable.
+ */
+const localFallbackState: {
+  chunks: string[] | null
+  inFlightPromise: Promise<string[]> | null
+} = {
+  chunks: null,
+  inFlightPromise: null,
+}
+
+/**
  * Fetches the raw Tesouro Direto CSV file from the official source.
  * Logs only when an actual external HTTP request occurs.
  */
@@ -34,22 +46,15 @@ async function fetchRawTesouroCSV(): Promise<string> {
 }
 
 /**
- * Fetches the CSV and splits it into an array of text chunks.
- * Each chunk is guaranteed to stay below the 2MB cache restriction.
+ * Pure function that splits a raw CSV string into an array of text chunks.
+ * Keeps each chunk safely under the ~2MB cache size limit.
  */
-export async function fetchAndChunkCSV(): Promise<{ chunks: string[]; totalChunks: number }> {
-  const fullCsv = await fetchRawTesouroCSV()
-  const lines = fullCsv.split(/\r?\n/)
+export function chunkCSV(csv: string, maxLinesPerChunk: number = MAX_LINES_PER_CHUNK): string[] {
+  const lines = csv.split(/\r?\n/)
   const chunks: string[] = []
 
-  console.log("[TesouroData] Splitting CSV in chunks...")
-
-  for (let i = 0; i < lines.length; i += MAX_LINES_PER_CHUNK) {
-    const chunkLines = lines.slice(i, i + MAX_LINES_PER_CHUNK)
-
-    /**
-     * Skip empty trailing chunk fragments caused by the final newline.
-     */
+  for (let i = 0; i < lines.length; i += maxLinesPerChunk) {
+    const chunkLines = lines.slice(i, i + maxLinesPerChunk)
     const chunk = chunkLines.join("\n")
 
     if (chunk.length > 0) {
@@ -57,108 +62,76 @@ export async function fetchAndChunkCSV(): Promise<{ chunks: string[]; totalChunk
     }
   }
 
-  return {
-    chunks,
-    totalChunks: chunks.length,
+  return chunks
+}
+
+/**
+ * Fetches and splits the CSV into chunks locally (used by the fallback mechanism).
+ */
+async function getLocalChunks(): Promise<string[]> {
+  if (localFallbackState.chunks) {
+    return localFallbackState.chunks
+  }
+
+  if (localFallbackState.inFlightPromise) {
+    return localFallbackState.inFlightPromise
+  }
+
+  localFallbackState.inFlightPromise = (async () => {
+    const fullCsv = await fetchRawTesouroCSV()
+    
+    console.log("[TesouroData] Splitting CSV in chunks (Local Fallback)...")
+    const chunks = chunkCSV(fullCsv)
+
+    localFallbackState.chunks = chunks
+    return chunks
+  })().finally(() => {
+    localFallbackState.inFlightPromise = null
+  })
+
+  return localFallbackState.inFlightPromise
+}
+
+/**
+ * Cached function to retrieve total lines and chunk count with local fallback..
+ */
+const getCachedTotalChunks = async (): Promise<number> => {
+  try {
+    return await unstable_cache(
+      async () => {
+        const chunks = await getLocalChunks()
+        return chunks.length
+      },
+      ["tesouro-total-chunks"],
+      { revalidate: CACHE_TTL_SECONDS, tags: ["tesouro-cache"] }
+    )()
+  } catch (error) {
+    console.warn("[TesouroData] unstable_cache failed for total chunks, using local fallback:", error)
+    const chunks = await getLocalChunks()
+    return chunks.length
   }
 }
 
 /**
- * In a full Next.js runtime, unstable_cache acts as the global coalescing layer
- * shared across serverless instances. In tests or other non-Next execution contexts,
- * we fall back to a local promise cache so the service keeps the same behavior without
- * crashing on the missing incremental cache runtime.
- * 
- * --- MARKED FOR DELETE - KEEPING FOR NOW AS REFERENCE ---
- */
-const getCachedCsvBundle = (() => {
-  const localState: {
-    result: { chunks: string[]; totalChunks: number } | null
-    inFlightPromise: Promise<{ chunks: string[]; totalChunks: number }> | null
-  } = {
-    result: null,
-    inFlightPromise: null,
-  }
-
-  const loadBundle = async (): Promise<{ chunks: string[]; totalChunks: number }> => {
-    try {
-      return await unstable_cache(
-        async () => {
-          const { chunks, totalChunks } = await fetchAndChunkCSV()
-          return { chunks, totalChunks }
-        },
-        ["tesouro-csv-bundle"],
-        {
-          revalidate: CACHE_TTL_SECONDS,
-          tags: ["tesouro-cache"],
-        }
-      )()
-    } catch (error) {
-      console.log(`[TesouroData] loadBundle error: ${error}`)
-
-      if (localState.result) {
-        return localState.result
-      }
-
-      if (localState.inFlightPromise) {
-        return localState.inFlightPromise
-      }
-
-      localState.inFlightPromise = fetchAndChunkCSV()
-        .then((bundle) => {
-          localState.result = bundle
-          return bundle
-        })
-        .finally(() => {
-          localState.inFlightPromise = null
-        })
-
-      return localState.inFlightPromise
-    }
-  }
-
-  return {
-    async getTotalChunks(): Promise<{ totalChunks: number }> {
-      const bundle = await loadBundle()
-      return { totalChunks: bundle.totalChunks }
-    },
-    async getChunk(chunkIndex: number): Promise<string> {
-      const bundle = await loadBundle()
-      return bundle.chunks[chunkIndex] || ""
-    },
-  }
-})()
-
-/**
- * Cached function to retrieve total lines and chunk count.
- */
-const getCachedTotalChunks = unstable_cache(
-  async () => {
-    const { totalChunks } = await fetchAndChunkCSV()
-    return totalChunks
-  },
-  ["tesouro-total-chunks"],
-  {
-    revalidate: CACHE_TTL_SECONDS,
-    tags: ["tesouro-cache"],
-  }
-)
-
-/**
- * Cached function to retrieve a specific chunk by its index.
+ * Cached function to retrieve a specific chunk by its index with local fallback.
  * The index is automatically part of the cache key generation in Next.js.
  */
-const getCachedChunkByIndex = unstable_cache(
-  async (chunkIndex: number) => {
-    const { chunks } = await fetchAndChunkCSV()
+const getCachedChunkByIndex = async (chunkIndex: number): Promise<string> => {
+  try {
+    return await unstable_cache(
+      async () => {
+        const chunks = await getLocalChunks()
+        return chunks[chunkIndex] || ""
+      },
+      [`tesouro-chunk-content-${chunkIndex}`],
+      { revalidate: CACHE_TTL_SECONDS, tags: ["tesouro-cache"] }
+    )()
+  } catch (error) {
+    console.warn(`[TesouroData] unstable_cache failed for chunk ${chunkIndex}, using local fallback:`, error)
+    const chunks = await getLocalChunks()
     return chunks[chunkIndex] || ""
-  },
-  ["tesouro-chunk-content"],
-  {
-    revalidate: CACHE_TTL_SECONDS,
-    tags: ["tesouro-cache"],
   }
-)
+}
 
 /**
  * Builds a Map for O(1) lookup where each key contains

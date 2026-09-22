@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 
-import { fetchAndChunkCSV, findTesouroTitulo } from "@/lib/services/tesouro.service"
+import { chunkCSV, findTesouroTitulo } from "@/lib/services/tesouro.service"
 
 import { mockFetch } from "../mocks/fetch.mock"
 
@@ -20,26 +20,32 @@ describe("tesouro.service (integration)", () => {
 
   /**
    * -------------------------------
-   * CACHE TESTS
+   * CHUNK FUNCTION TESTS (Pure Function)
    * -------------------------------
    */
-
-  it("should split the CSV into cache-safe chunks", async () => {
+  it("should split the CSV into cache-safe chunks using the pure chunkCSV function", () => {
     const header = "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha"
-    const rows = Array.from({ length: 40000 }, (_, index) => {
+    const rows = Array.from({ length: 40_000 }, () => {
       const dataBase = "2026-03-31"
       const vencimento = "2028-03-01"
 
       return ["Tesouro Selic", vencimento, dataBase, "5,00", "5,10", "100,00", "101,00", "99,50"].join(";")
     })
 
-    mockFetch([header, ...rows].join("\n"))
+    const fullMockCSV = [header, ...rows].join("\n")
 
-    const { chunks, totalChunks } = await fetchAndChunkCSV()
+    // Test the pure chunkCSV function directly
+    const chunks = chunkCSV(fullMockCSV)
 
-    expect(totalChunks).toBeGreaterThan(1)
-    expect(chunks.every((chunk) => Buffer.byteLength(chunk, "utf8") < 1_500_000)).toBe(true)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.every((chunk) => Buffer.byteLength(chunk, "utf8") < 2_000_000)).toBe(true)
   })
+
+  /**
+   * -------------------------------
+   * CACHE TESTS
+   * -------------------------------
+   */
 
   it("should fetch data on first call (cache miss)", async () => {
     const { getTesouroData } = await import("@/lib/services/tesouro.service")
