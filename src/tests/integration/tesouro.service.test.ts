@@ -128,7 +128,7 @@ describe("tesouro.service (integration)", () => {
     expect(getOptions).toMatchObject({ cache: "no-store" })
   })
 
-  it("should reuse cache on subsequent calls (cache hit)", async () => {
+it("should reuse RAM cache on subsequent calls (local-first cache hit)", async () => {
     const { getTesouroData } = await import("@/lib/services/tesouro.service")
 
     mockFetch(sampleCSV)
@@ -136,8 +136,10 @@ describe("tesouro.service (integration)", () => {
     await getTesouroData()
     await getTesouroData()
 
-    // Total fetch calls must be 3 (2 HEAD for validation + 1 GET for download)
-    expect(global.fetch).toHaveBeenCalledTimes(3)
+    // Total fetch calls must be 2: 
+    // 1 HEAD for the initial validation + 1 GET for the initial download.
+    // Subsequent calls are served directly from RAM via Local First, making 0 network calls.
+    expect(global.fetch).toHaveBeenCalledTimes(2)
 
     // Identifies and validates each call individually by HTTP method
     const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
@@ -151,11 +153,6 @@ describe("tesouro.service (integration)", () => {
     const [getUrl, getOptions] = fetchCalls[1]
     expect(getUrl).toBe(TESOURO_CSV_URL)
     expect(getOptions).toMatchObject({ cache: "no-store" })
-
-    // The third call must be the validation HEAD request
-    const [SubsequentHeadUrl, SubsequentHeadOptions] = fetchCalls[0]
-    expect(SubsequentHeadUrl).toBe(TESOURO_CSV_URL)
-    expect(SubsequentHeadOptions).toMatchObject({ method: "HEAD" })
   })
 
   /**

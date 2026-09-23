@@ -14,23 +14,32 @@ const HEAD_CACHE_TTL_SECONDS = 5 * 60
 // Cache TTL set to 1 hour (expressed in seconds for unstable_cache)
 const CACHE_TTL_SECONDS = 60 * 60
 
+/**
+ * Short local RAM TTLs for fast in-memory lookups (avoiding distributed cache overhead).
+ */
+const LOCAL_RAM_HEAD_TTL_MS = 30 * 1000 // 30 seconds
+const LOCAL_RAM_CHUNKS_TTL_MS = 60 * 1000 // 1 minute
+
 // Maximum lines per chunk to keep each cached payload safely under Next.js' ~2MB limit.
 const MAX_LINES_PER_CHUNK = 19_173
 
 /**
- * Local memory state used as a fallback for test environments or non-Next runtimes
- * where unstable_cache runtime is unavailable.
+ * Local memory state used as a local-first RAM cache and fallback.
  */
 const localFallbackState: {
   chunks: string[] | null
   inFlightPromise: Promise<string[]> | null
   inFlightHeadPromise: Promise<string | null> | null
   lastModifiedCache: string | null
+  lastHeadCheckTimestamp: number
+  chunksTimestamp: number
 } = {
   chunks: null,
   inFlightPromise: null,
   inFlightHeadPromise: null,
   lastModifiedCache: null,
+  lastHeadCheckTimestamp: 0,
+  chunksTimestamp: 0,
 }
 
 // Performs a lightweight HEAD request using the global distributed cache layer.
@@ -79,21 +88,39 @@ async function getLocalLastModified(): Promise<string | null> {
 }
 
 /**
- * Cached function to fetch the remote Last-Modified header globally.
+ * Cached function to fetch the remote Last-Modified header globally,
+ * implementing a Local-First RAM cache to skip distributed lookups for frequent calls.
  */
 async function getCachedLastModified(): Promise<string | null> {
+  const now = Date.now()
+
+  // LOCAL FIRST: If the last HEAD check was performed recently in this instance's RAM,
+  // return it immediately in microseconds without touching the distributed cache layer.
+  if (
+    localFallbackState.lastModifiedCache &&
+    now - localFallbackState.lastHeadCheckTimestamp < LOCAL_RAM_HEAD_TTL_MS
+  ) {
+    return localFallbackState.lastModifiedCache
+  }
+
   try {
-    return await unstable_cache(
+    const result = await unstable_cache(
       async () => {
         console.log("[TesouroData] GLOBAL CACHE EXPIRED - Executing remote HEAD request...")
         return getLocalLastModified()
       },
-      ["tesouro-remote -head-check"],
+      ["tesouro-remote-head-check"],
       { revalidate: HEAD_CACHE_TTL_SECONDS, tags: ["tesouro-head-cache"] }
     )()
+
+    // Update local RAM timestamp on successful retrieval
+    localFallbackState.lastHeadCheckTimestamp = Date.now()
+    return result
   } catch (error) {
     console.warn("[TesouroData] unstable_cache unavailable or failed, using local in-flight coalescing:", error)
-    return getLocalLastModified()
+    const result = await getLocalLastModified()
+    localFallbackState.lastHeadCheckTimestamp = Date.now()
+    return result
   }
 }
 
@@ -187,38 +214,61 @@ async function validateAndPurgeCacheIfNeeded(): Promise<void> {
 }
 
 /**
- * Cached function to retrieve total lines and chunk count with local fallback..
+ * Cached function to retrieve total lines and chunk count using Local-First RAM priority.
  */
 const getCachedTotalChunks = async (): Promise<number> => {
+  const now = Date.now()
+
+  // LOCAL FIRST: Return chunk length directly from RAM if within the short local TTL.
+  if (
+    localFallbackState.chunks &&
+    now - localFallbackState.chunksTimestamp < LOCAL_RAM_CHUNKS_TTL_MS
+  ) {
+    return localFallbackState.chunks.length
+  }
+
   await validateAndPurgeCacheIfNeeded()
 
   try {
-    return await unstable_cache(
+    const total = await unstable_cache(
       async () => {
         console.log("[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh total chunks")
         const chunks = await getLocalChunks()
+        localFallbackState.chunksTimestamp = Date.now()
         return chunks.length
       },
       ["tesouro-total-chunks"],
       { revalidate: CACHE_TTL_SECONDS, tags: ["tesouro-cache"] }
     )()
+    return total
   } catch (error) {
     console.warn("[TesouroData] unstable_cache failed for total chunks, using local fallback:", error)
     const chunks = await getLocalChunks()
+    localFallbackState.chunksTimestamp = Date.now()
     return chunks.length
   }
 }
 
 /**
- * Cached function to retrieve a specific chunk by its index with local fallback.
- * The index is automatically part of the cache key generation in Next.js.
+ * Cached function to retrieve a specific chunk by its index with Local-First RAM priority.
  */
 const getCachedChunkByIndex = async (chunkIndex: number): Promise<string> => {
+  const now = Date.now()
+
+  // LOCAL FIRST: Serve chunk directly from instance memory if chunks are fresh in RAM.
+  if (
+    localFallbackState.chunks &&
+    now - localFallbackState.chunksTimestamp < LOCAL_RAM_CHUNKS_TTL_MS
+  ) {
+    return localFallbackState.chunks[chunkIndex] || ""
+  }
+
   try {
     return await unstable_cache(
       async () => {
         console.log(`[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh chunk ${chunkIndex}`)
         const chunks = await getLocalChunks()
+        localFallbackState.chunksTimestamp = Date.now()
         return chunks[chunkIndex] || ""
       },
       [`tesouro-chunk-content-${chunkIndex}`],
@@ -227,6 +277,7 @@ const getCachedChunkByIndex = async (chunkIndex: number): Promise<string> => {
   } catch (error) {
     console.warn(`[TesouroData] unstable_cache failed for chunk ${chunkIndex}, using local fallback:`, error)
     const chunks = await getLocalChunks()
+    localFallbackState.chunksTimestamp = Date.now()
     return chunks[chunkIndex] || ""
   }
 }
