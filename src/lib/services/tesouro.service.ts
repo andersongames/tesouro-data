@@ -4,6 +4,13 @@ import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/te
 import { normalizeTituloKey } from "../utils/tesouro-key"
 import { TESOURO_CSV_URL } from "../constants"
 
+/**
+ * TTL for the remote HEAD check wrapped in Next.js cache (e.g., 5 minutes = 300 seconds).
+ * This ensures that across distributed serverless instances, the HEAD check 
+ * is globally throttled by the Next.js Data Cache layer.
+ */
+const HEAD_CACHE_TTL_SECONDS = 5 * 60
+
 // Cache TTL set to 1 hour (expressed in seconds for unstable_cache)
 const CACHE_TTL_SECONDS = 60 * 60
 
@@ -26,34 +33,68 @@ const localFallbackState: {
   lastModifiedCache: null,
 }
 
+// Performs a lightweight HEAD request using the global distributed cache layer.
+async function fetchLastModified(): Promise<string | null> {
+  const response = await fetch(TESOURO_CSV_URL, {
+    method: "HEAD",
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Tesouro CSV: ${response.status}`)
+  }
+
+  return response.headers.get("last-modified") || response.headers.get("etag")
+}
+
 /**
- * Performs a lightweight HEAD request to check the remote resource Last-Modified header.
- * Uses an in-flight promise to coalesce simultaneous concurrent HEAD requests.
+ * Fetches Last Modified locally.
+ * Uses in-flight request coalescing to prevent duplicate concurrent HEAD requests
+ * and falls back to Next.js unstable_cache when available.
  */
-async function getRemoteLastModified(): Promise<string | null> {
+async function getLocalLastModified(): Promise<string | null> {
+  if (localFallbackState.lastModifiedCache) {
+    return localFallbackState.lastModifiedCache
+  }
+
+  // Coalesce concurrent calls in-memory (vital for tests and high concurrency)
   if (localFallbackState.inFlightHeadPromise) {
     return localFallbackState.inFlightHeadPromise
   }
 
   localFallbackState.inFlightHeadPromise = (async () => {
     try {
-      const response = await fetch(TESOURO_CSV_URL, {
-        method: "HEAD",
-        cache: "no-store",
-      })
-
-      if (!response.ok) return null
-
-      return response.headers.get("last-modified") || response.headers.get("etag")
+      const lastModified = await fetchLastModified()
+  
+      return lastModified
     } catch (error) {
-      console.warn("[TesouroData] Failed to fetch remote HEAD headers:", error)
-      return null
+        console.warn("[TesouroData] Failed to direct fetch remote HEAD headers:", error)
+        return null
     }
   })().finally(() => {
     localFallbackState.inFlightHeadPromise = null
   })
 
   return localFallbackState.inFlightHeadPromise
+}
+
+/**
+ * Cached function to fetch the remote Last-Modified header globally.
+ */
+async function getCachedLastModified(): Promise<string | null> {
+  try {
+    return await unstable_cache(
+      async () => {
+        console.log("[TesouroData] GLOBAL CACHE EXPIRED - Executing remote HEAD request...")
+        return getLocalLastModified()
+      },
+      ["tesouro-remote -head-check"],
+      { revalidate: HEAD_CACHE_TTL_SECONDS, tags: ["tesouro-head-cache"] }
+    )()
+  } catch (error) {
+    console.warn("[TesouroData] unstable_cache unavailable or failed, using local in-flight coalescing:", error)
+    return getLocalLastModified()
+  }
 }
 
 /**
@@ -128,14 +169,14 @@ async function getLocalChunks(): Promise<string[]> {
  * Validates remote changes via HEAD request and invalidates cache tag if updated.
  */
 async function validateAndPurgeCacheIfNeeded(): Promise<void> {
-  const remoteModified = await getRemoteLastModified()
+  const remoteModified = await getCachedLastModified()
 
   console.log(`[TesouroData] Remote dataset date: ${remoteModified}`)
 
   if (remoteModified && localFallbackState.lastModifiedCache) {
     if (remoteModified !== localFallbackState.lastModifiedCache) {
       console.log("[TesouroData] Remote dataset updated! Purging cache tag...")
-      revalidateTag("tesouro-cache", "max")
+      revalidateTag("tesouro-cache","max")
       localFallbackState.chunks = null // Reset local memory fallback
     }
   }
