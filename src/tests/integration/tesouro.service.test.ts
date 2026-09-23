@@ -5,6 +5,7 @@ import { resolve } from "path"
 import { chunkCSV, findTesouroTitulo } from "@/lib/services/tesouro.service"
 
 import { mockFetch } from "../mocks/fetch.mock"
+import { TESOURO_CSV_URL } from "@/lib/constants"
 
 /**
  * Load CSV fixture
@@ -77,8 +78,22 @@ describe("tesouro.service (integration)", () => {
     /**
      * Even under a heavy load of 20 concurrent requests,
      * the external fetch must be executed exactly once due to request coalescing/cache.
+     * Total fetch calls must be 2 (1 HEAD for validation + 1 GET for download)
      */
-    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+
+    // Identifies and validates each call individually by HTTP method
+    const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+
+    // The first call must be the validation HEAD request
+    const [headUrl, headOptions] = fetchCalls[0]
+    expect(headUrl).toBe(TESOURO_CSV_URL)
+    expect(headOptions).toMatchObject({ method: "HEAD" })
+
+    // The second call must be the GET request for the complete CSV
+    const [getUrl, getOptions] = fetchCalls[1]
+    expect(getUrl).toBe(TESOURO_CSV_URL)
+    expect(getOptions).toMatchObject({ cache: "no-store" })
   })
 
   /**
@@ -95,7 +110,22 @@ describe("tesouro.service (integration)", () => {
     const result = await getTesouroData()
 
     expect(result).toBeDefined()
-    expect(global.fetch).toHaveBeenCalledTimes(1)
+    
+    // Total fetch calls must be 2 (1 HEAD for validation + 1 GET for download)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+
+    // Identifies and validates each call individually by HTTP method
+    const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+
+    // The first call must be the validation HEAD request
+    const [headUrl, headOptions] = fetchCalls[0]
+    expect(headUrl).toBe(TESOURO_CSV_URL)
+    expect(headOptions).toMatchObject({ method: "HEAD" })
+
+    // The second call must be the GET request for the complete CSV
+    const [getUrl, getOptions] = fetchCalls[1]
+    expect(getUrl).toBe(TESOURO_CSV_URL)
+    expect(getOptions).toMatchObject({ cache: "no-store" })
   })
 
   it("should reuse cache on subsequent calls (cache hit)", async () => {
@@ -106,10 +136,26 @@ describe("tesouro.service (integration)", () => {
     await getTesouroData()
     await getTesouroData()
 
-    /**
-     * Fetch should be called only once due to cache
-     */
-    expect(global.fetch).toHaveBeenCalledTimes(1)
+    // Total fetch calls must be 3 (2 HEAD for validation + 1 GET for download)
+    expect(global.fetch).toHaveBeenCalledTimes(3)
+
+    // Identifies and validates each call individually by HTTP method
+    const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+
+    // The first call must be the validation HEAD request
+    const [headUrl, headOptions] = fetchCalls[0]
+    expect(headUrl).toBe(TESOURO_CSV_URL)
+    expect(headOptions).toMatchObject({ method: "HEAD" })
+
+    // The second call must be the GET request for the complete CSV
+    const [getUrl, getOptions] = fetchCalls[1]
+    expect(getUrl).toBe(TESOURO_CSV_URL)
+    expect(getOptions).toMatchObject({ cache: "no-store" })
+
+    // The third call must be the validation HEAD request
+    const [SubsequentHeadUrl, SubsequentHeadOptions] = fetchCalls[0]
+    expect(SubsequentHeadUrl).toBe(TESOURO_CSV_URL)
+    expect(SubsequentHeadOptions).toMatchObject({ method: "HEAD" })
   })
 
   /**
@@ -132,8 +178,22 @@ describe("tesouro.service (integration)", () => {
     /**
      * Even with multiple concurrent calls,
      * fetch should be called only once
+     * Total fetch calls must be 2 (1 HEAD for validation + 1 GET for download)
      */
-    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+
+    // Identifies and validates each call individually by HTTP method
+    const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+
+    // The first call must be the validation HEAD request
+    const [headUrl, headOptions] = fetchCalls[0]
+    expect(headUrl).toBe(TESOURO_CSV_URL)
+    expect(headOptions).toMatchObject({ method: "HEAD" })
+
+    // The second call must be the GET request for the complete CSV
+    const [getUrl, getOptions] = fetchCalls[1]
+    expect(getUrl).toBe(TESOURO_CSV_URL)
+    expect(getOptions).toMatchObject({ cache: "no-store" })
   })
 
   /**

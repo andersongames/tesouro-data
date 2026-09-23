@@ -1,10 +1,8 @@
-import { unstable_cache } from "next/cache"
+import { unstable_cache, revalidateTag } from "next/cache"
 import { parseTesouroCSV } from "../parsers/tesouro.parser"
 import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
-
-const TESOURO_CSV_URL =
-  "https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/precotaxatesourodireto.csv"
+import { TESOURO_CSV_URL } from "../constants"
 
 // Cache TTL set to 1 hour (expressed in seconds for unstable_cache)
 const CACHE_TTL_SECONDS = 60 * 60
@@ -19,9 +17,43 @@ const MAX_LINES_PER_CHUNK = 19_173
 const localFallbackState: {
   chunks: string[] | null
   inFlightPromise: Promise<string[]> | null
+  inFlightHeadPromise: Promise<string | null> | null
+  lastModifiedCache: string | null
 } = {
   chunks: null,
   inFlightPromise: null,
+  inFlightHeadPromise: null,
+  lastModifiedCache: null,
+}
+
+/**
+ * Performs a lightweight HEAD request to check the remote resource Last-Modified header.
+ * Uses an in-flight promise to coalesce simultaneous concurrent HEAD requests.
+ */
+async function getRemoteLastModified(): Promise<string | null> {
+  if (localFallbackState.inFlightHeadPromise) {
+    return localFallbackState.inFlightHeadPromise
+  }
+
+  localFallbackState.inFlightHeadPromise = (async () => {
+    try {
+      const response = await fetch(TESOURO_CSV_URL, {
+        method: "HEAD",
+        cache: "no-store",
+      })
+
+      if (!response.ok) return null
+
+      return response.headers.get("last-modified") || response.headers.get("etag")
+    } catch (error) {
+      console.warn("[TesouroData] Failed to fetch remote HEAD headers:", error)
+      return null
+    }
+  })().finally(() => {
+    localFallbackState.inFlightHeadPromise = null
+  })
+
+  return localFallbackState.inFlightHeadPromise
 }
 
 /**
@@ -93,13 +125,35 @@ async function getLocalChunks(): Promise<string[]> {
 }
 
 /**
+ * Validates remote changes via HEAD request and invalidates cache tag if updated.
+ */
+async function validateAndPurgeCacheIfNeeded(): Promise<void> {
+  const remoteModified = await getRemoteLastModified()
+
+  console.log(`[TesouroData] Remote dataset date: ${remoteModified}`)
+
+  if (remoteModified && localFallbackState.lastModifiedCache) {
+    if (remoteModified !== localFallbackState.lastModifiedCache) {
+      console.log("[TesouroData] Remote dataset updated! Purging cache tag...")
+      revalidateTag("tesouro-cache", "max")
+      localFallbackState.chunks = null // Reset local memory fallback
+    }
+  }
+
+  if (remoteModified) {
+    localFallbackState.lastModifiedCache = remoteModified
+  }
+}
+
+/**
  * Cached function to retrieve total lines and chunk count with local fallback..
  */
 const getCachedTotalChunks = async (): Promise<number> => {
+  await validateAndPurgeCacheIfNeeded()
+
   try {
     return await unstable_cache(
       async () => {
-        // If this inner function runs, it means the cache was either a MISS or EXPIRED
         console.log("[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh total chunks")
         const chunks = await getLocalChunks()
         return chunks.length
