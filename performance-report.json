@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-09-24T18:28:15.480Z",
+  "results": [
+    {
+      "label": "Cold Request",
+      "duration": 1004.6505,
+      "success": true
+    },
+    {
+      "label": "Warm Request #1",
+      "duration": 861.8874000000001,
+      "success": true
+    },
+    {
+      "label": "Warm Request #2",
+      "duration": 854.7455999999997,
+      "success": true
+    }
+  ]
+}
