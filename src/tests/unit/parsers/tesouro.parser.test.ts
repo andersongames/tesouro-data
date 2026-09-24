@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "fs"
 import { resolve } from "path"
-import { parseTesouroCSV } from "@/lib/parsers/tesouro.parser"
+import { buildTituloMap, chunkCSV, parseTesouroCSV } from "@/lib/parsers/tesouro.parser"
+import { normalizeTituloKey } from "@/lib/utils/tesouro-key"
 
 /**
  * Load CSV fixture
@@ -13,39 +14,156 @@ const csvPath = resolve(
 
 const sampleCSV = readFileSync(csvPath, "utf-8")
 
-describe("parseTesouroCSV", () => {
-  it("should parse CSV into structured objects", () => {
-    const result = parseTesouroCSV(sampleCSV)
+describe("tesouro.parser", () => {
+  describe("chunkCSV", () => {
+    it("should split the CSV into cache-safe chunks using the pure chunkCSV function", () => {
+      const header = "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha"
+      const rows = Array.from({ length: 40_000 }, () => {
+        const dataBase = "2026-03-31"
+        const vencimento = "2028-03-01"
 
-    expect(result.length).toBeGreaterThan(0)
+        return ["Tesouro Selic", vencimento, dataBase, "5,00", "5,10", "100,00", "101,00", "99,50"].join(";")
+      })
+
+      const fullMockCSV = [header, ...rows].join("\n")
+
+      // Test the pure chunkCSV function directly
+      const chunks = chunkCSV(fullMockCSV)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => Buffer.byteLength(chunk, "utf8") < 2_000_000)).toBe(true)
+    })
   })
 
-  it("should convert numeric fields correctly", () => {
-    const result = parseTesouroCSV(sampleCSV)
+  describe("parseTesouroCSV", () => {
+    it("should parse CSV into structured objects", () => {
+      const result = parseTesouroCSV(sampleCSV)
 
-    const item = result[0]
+      expect(result.length).toBeGreaterThan(0)
+    })
 
-    expect(typeof item.taxaCompra).toBe("number")
-    expect(typeof item.puCompra).toBe("number")
+    it("should convert numeric fields correctly", () => {
+      const result = parseTesouroCSV(sampleCSV)
+
+      const item = result[0]
+
+      expect(typeof item.taxaCompra).toBe("number")
+      expect(typeof item.puCompra).toBe("number")
+    })
+
+    it("should normalize dates to ISO format", () => {
+      const result = parseTesouroCSV(sampleCSV)
+
+      const item = result[0]
+
+      expect(item.vencimento).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(item.dataBase).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    })
+
+    it("should not ignore invalid rows", () => {
+      const invalidCSV = `
+        Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha
+        Tesouro IPCA+;INVALID_DATE;30/03/2026;7,03;7,15;896,82;872,37;872,37
+        `.trim()
+
+      const result = parseTesouroCSV(invalidCSV)
+
+      expect(result.length).toBeGreaterThan(0)
+    })
   })
 
-  it("should normalize dates to ISO format", () => {
-    const result = parseTesouroCSV(sampleCSV)
+  describe("buildTituloMap", () => {
+    const mockData = [
+      {
+        tipo: "Tesouro IPCA+",
+        vencimento: "2032-08-15",
+        dataBase: "2026-03-30",
+        taxaCompra: 6,
+        taxaVenda: 6,
+        puCompra: 1000,
+        puVenda: 1000,
+        puBase: 1000,
+      },
+      {
+        tipo: "Tesouro IPCA+",
+        vencimento: "2032-08-15",
+        dataBase: "2026-03-31", // more recent
+        taxaCompra: 7,
+        taxaVenda: 7,
+        puCompra: 1100,
+        puVenda: 1100,
+        puBase: 1100,
+      },
+      {
+        tipo: "Tesouro Selic",
+        vencimento: "2028-03-01",
+        dataBase: "2026-03-31",
+        taxaCompra: 0.1,
+        taxaVenda: 0.1,
+        puCompra: 20000,
+        puVenda: 20000,
+        puBase: 20000,
+      },
+    ]
 
-    const item = result[0]
+    it("should group titles by tipo + vencimento", () => {
+      const map = buildTituloMap(mockData)
 
-    expect(item.vencimento).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(item.dataBase).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-  })
+      /**
+       * Expect 2 groups:
+       * - Tesouro IPCA+
+       * - Tesouro Selic
+       */
+      expect(map.size).toBe(2)
 
-  it("should not ignore invalid rows", () => {
-    const invalidCSV = `
-      Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha
-      Tesouro IPCA+;INVALID_DATE;30/03/2026;7,03;7,15;896,82;872,37;872,37
-      `.trim()
+      const ipcaKey = normalizeTituloKey(
+        "Tesouro IPCA+",
+        "2032-08-15"
+      )
 
-    const result = parseTesouroCSV(invalidCSV)
+      const ipcaList = map.get(ipcaKey)
 
-    expect(result.length).toBeGreaterThan(0)
+      expect(ipcaList).toBeDefined()
+      expect(ipcaList!.length).toBe(2)
+    })
+
+    it("should sort items by dataBase descending", () => {
+      const map = buildTituloMap(mockData)
+
+      const key = normalizeTituloKey(
+        "Tesouro IPCA+",
+        "2032-08-15"
+      )
+
+      const list = map.get(key)!
+
+      /**
+       * Most recent item should be first
+       */
+      expect(list[0].dataBase).toBe("2026-03-31")
+      expect(list[1].dataBase).toBe("2026-03-30")
+    })
+
+    it("should handle single item groups", () => {
+      const single = [mockData[2]]
+
+      const map = buildTituloMap(single)
+
+      expect(map.size).toBe(1)
+    })
+
+    it("should not mix different titles", () => {
+      const map = buildTituloMap(mockData)
+
+      const selicKey = normalizeTituloKey(
+        "Tesouro Selic",
+        "2028-03-01"
+      )
+
+      const list = map.get(selicKey)!
+
+      expect(list.length).toBe(1)
+      expect(list[0].tipo).toBe("Tesouro Selic")
+    })
   })
 })

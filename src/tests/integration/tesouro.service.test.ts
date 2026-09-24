@@ -6,7 +6,7 @@ import { findTesouroTitulo } from "@/lib/services/tesouro.service"
 
 import { mockFetch } from "../mocks/fetch.mock"
 import { TESOURO_CSV_URL } from "@/lib/constants"
-import { chunkCSV } from "@/lib/parsers/tesouro.parser"
+
 
 /**
  * Load CSV fixture
@@ -18,29 +18,6 @@ describe("tesouro.service (integration)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
-  })
-
-  /**
-   * -------------------------------
-   * CHUNK FUNCTION TESTS (Pure Function)
-   * -------------------------------
-   */
-  it("should split the CSV into cache-safe chunks using the pure chunkCSV function", () => {
-    const header = "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha"
-    const rows = Array.from({ length: 40_000 }, () => {
-      const dataBase = "2026-03-31"
-      const vencimento = "2028-03-01"
-
-      return ["Tesouro Selic", vencimento, dataBase, "5,00", "5,10", "100,00", "101,00", "99,50"].join(";")
-    })
-
-    const fullMockCSV = [header, ...rows].join("\n")
-
-    // Test the pure chunkCSV function directly
-    const chunks = chunkCSV(fullMockCSV)
-
-    expect(chunks.length).toBeGreaterThan(1)
-    expect(chunks.every((chunk) => Buffer.byteLength(chunk, "utf8") < 2_000_000)).toBe(true)
   })
 
   /**
