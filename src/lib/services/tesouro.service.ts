@@ -59,10 +59,6 @@ async function fetchLastModified(): Promise<string | null> {
  * and falls back to Next.js unstable_cache when available.
  */
 async function getLocalLastModified(): Promise<string | null> {
-  if (localFallbackState.lastModifiedCache) {
-    return localFallbackState.lastModifiedCache
-  }
-
   // Coalesce concurrent calls in-memory (vital for tests and high concurrency)
   if (localFallbackState.inFlightHeadPromise) {
     return localFallbackState.inFlightHeadPromise
@@ -97,6 +93,7 @@ async function getCachedLastModified(): Promise<string | null> {
     localFallbackState.lastModifiedCache &&
     now - localFallbackState.lastHeadCheckTimestamp < LOCAL_RAM_HEAD_TTL_MS
   ) {
+    console.log("[TesouroData] Serving HEAD from local RAM cache (TTL active)")
     return localFallbackState.lastModifiedCache
   }
 
@@ -180,8 +177,15 @@ async function validateAndPurgeCacheIfNeeded(): Promise<void> {
   if (remoteModified && localFallbackState.lastModifiedCache) {
     if (remoteModified !== localFallbackState.lastModifiedCache) {
       console.log("[TesouroData] Remote dataset updated! Purging cache tag...")
-      revalidateTag("tesouro-cache","max")
-      localFallbackState.chunks = null // Reset local memory fallback
+
+      // Safely attempt to revalidate the cache tag, catching errors outside Next.js runtime/tests
+      try {
+        revalidateTag("tesouro-cache", "max")
+      } catch (error) {
+        console.warn("[TesouroData] revalidateTag skipped or unavailable (test/non-Next environment):", error)
+      }
+      // Reset local memory fallback
+      localFallbackState.chunks = null
     }
   }
 
@@ -201,6 +205,7 @@ async function getCachedTotalChunks(): Promise<number> {
     localFallbackState.chunks &&
     now - localFallbackState.chunksTimestamp < LOCAL_RAM_CHUNKS_TTL_MS
   ) {
+    console.log("[TesouroData] Serving TotalChunks from local RAM cache (TTL active)")
     return localFallbackState.chunks.length
   }
 
@@ -237,6 +242,7 @@ async function getCachedChunkByIndex(chunkIndex: number): Promise<string> {
     localFallbackState.chunks &&
     now - localFallbackState.chunksTimestamp < LOCAL_RAM_CHUNKS_TTL_MS
   ) {
+    console.log("[TesouroData] Serving Chunk from local RAM cache (TTL active)")
     return localFallbackState.chunks[chunkIndex] || ""
   }
 
