@@ -193,7 +193,7 @@ async function validateAndPurgeCacheIfNeeded(): Promise<void> {
 /**
  * Cached function to retrieve total lines and chunk count using Local-First RAM priority.
  */
-const getCachedTotalChunks = async (): Promise<number> => {
+async function getCachedTotalChunks(): Promise<number> {
   const now = Date.now()
 
   // LOCAL FIRST: Return chunk length directly from RAM if within the short local TTL.
@@ -229,7 +229,7 @@ const getCachedTotalChunks = async (): Promise<number> => {
 /**
  * Cached function to retrieve a specific chunk by its index with Local-First RAM priority.
  */
-const getCachedChunkByIndex = async (chunkIndex: number): Promise<string> => {
+async function getCachedChunkByIndex(chunkIndex: number): Promise<string> {
   const now = Date.now()
 
   // LOCAL FIRST: Serve chunk directly from instance memory if chunks are fresh in RAM.
@@ -292,7 +292,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
   const totalChunks = await getCachedTotalChunks()
 
   /**
-   * If the dataset is empty, return an empty cache payload without parsing an invalid CSV string.
+   * If the dataset is empty, return an empty cache payload without parsing an invalid CSV string (edge case).
    */
   if (totalChunks === 0) {
     const fetchedAt = new Date().toISOString()
