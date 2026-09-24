@@ -1,5 +1,5 @@
+import { buildTituloMap } from "@/lib/parsers/tesouro.parser"
 import { normalizeTituloKey } from "@/lib/utils/tesouro-key"
-import { buildTituloMap } from "@/lib/services/tesouro.service"
 import { describe, it, expect } from "vitest"
 
 describe("buildTituloMap", () => {

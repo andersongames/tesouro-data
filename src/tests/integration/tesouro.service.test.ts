@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 
-import { chunkCSV, findTesouroTitulo } from "@/lib/services/tesouro.service"
+import { findTesouroTitulo } from "@/lib/services/tesouro.service"
 
 import { mockFetch } from "../mocks/fetch.mock"
 import { TESOURO_CSV_URL } from "@/lib/constants"
+import { chunkCSV } from "@/lib/parsers/tesouro.parser"
 
 /**
  * Load CSV fixture
