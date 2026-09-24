@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "fs"
 import { resolve } from "path"
-import { buildTituloMap, chunkCSV, parseTesouroCSV } from "@/lib/parsers/tesouro.parser"
+import { buildTituloMap, chunkCSV, parseAndMapChunks, parseTesouroCSV } from "@/lib/parsers/tesouro.parser"
 import { normalizeTituloKey } from "@/lib/utils/tesouro-key"
 
 /**
@@ -164,6 +164,31 @@ describe("tesouro.parser", () => {
 
       expect(list.length).toBe(1)
       expect(list[0].tipo).toBe("Tesouro Selic")
+    })
+  })
+
+  describe("parseAndMapChunks", () => {
+    it("should join multiple chunks, parse them, and return both data array and map", () => {
+      const chunk1 = "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha\nTesouro Selic;01/03/2028;31/03/2026;5,00;5,10;100,00;101,00;99,50"
+      const chunk2 = "Tesouro IPCA+;15/08/2032;31/03/2026;6,00;6,10;1000,00;1010,00;995,00"
+
+      const result = parseAndMapChunks([chunk1, chunk2])
+
+      // Verify data parsing
+      expect(result.data.length).toBe(2)
+      expect(result.data[0].tipo).toBe("Tesouro Selic")
+      expect(result.data[1].tipo).toBe("Tesouro IPCA+")
+
+      // Verify map creation
+      expect(result.map).toBeInstanceOf(Map)
+      expect(result.map.size).toBe(2)
+    })
+
+    it("should handle an empty array of chunks gracefully", () => {
+      const result = parseAndMapChunks([])
+
+      expect(result.data).toEqual([])
+      expect(result.map.size).toBe(0)
     })
   })
 })
