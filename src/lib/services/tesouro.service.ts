@@ -301,6 +301,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
    * If the dataset is empty, return an empty cache payload without parsing an invalid CSV string (edge case).
    */
   if (totalChunks === 0) {
+    console.log("[TesouroData] Dataset is empty, returning empty payload...")
     const fetchedAt = new Date().toISOString()
 
     return {
@@ -326,10 +327,12 @@ export async function getTesouroData(): Promise<TesouroCache> {
   /**
    * 3. Reassemble the full CSV string in memory and parse it using the existing parser.
    */
+  console.log("[TesouroData] Reassembling the full CSV...")
   const { data: parsed, map } = parseAndMapChunks(resolvedChunks)
   const latestDataBase = getLatestDataBase(parsed)
   const fetchedAt = new Date().toISOString()
 
+  console.log("[TesouroData] getTesouroData - Returning data...")
   return {
     data: parsed,
     map,
@@ -423,6 +426,7 @@ export async function findTesouroTitulo(
   const isLazyEligible = options?.limit === 1 && !options?.from && !options?.to
 
   if (isLazyEligible) {
+    console.log("[TesouroData] Lazy reading eligible, reading chunk 0...")
     const totalChunks = await getCachedTotalChunks()
     if (totalChunks > 0) {
       // Fetch only the first chunk where recent records reside
@@ -446,8 +450,10 @@ export async function findTesouroTitulo(
     return null
   }
 
+  console.log("[TesouroData] Applying filters to data...")
   const filtered = filterTituloHistory(list, options)
 
+  console.log("[TesouroData] findTesouroTitulo - Returning data...")
   return {
     items: filtered,
     fetchedAt,
