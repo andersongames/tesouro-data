@@ -1,0 +1,25 @@
+Melhores Alternativas para Automatizar e Usar esse Fluxo
+Opção A: GitHub Actions + Auto-Commit (A mais simples e sem custos extras)
+Como os dados do Tesouro Direto atualizam apenas em dias úteis, você pode usar uma GitHub Action (uma rotina gratuita do próprio GitHub) para rodar diariamente:
+
+O que faz: Um cron job no GitHub roda todo dia à noite. Ele baixa o CSV oficial, executa o seu script de geração do mapa (generate-tesouro-map.ts) e gera o tesouro-map.json.
+
+O pulo do gato: A action faz um git commit e git push automático do novo arquivo JSON de volta para o seu repositório.
+
+Resultado: O push para o GitHub dispara um novo deploy automático na Vercel (ou sua hospedagem), que já embute o JSON atualizado de forma estática e ultra-rápida, sem gastar banco de dados nem CPU de produção.
+
+----
+
+Sim, ter um arquivo de 40 MB no seu repositório exigirá alguns cuidados importantes, tanto no GitHub quanto na Vercel, para evitar bloqueios ou problemas de performance:
+
+1. Limitações do GitHub
+Limite por arquivo individual: O GitHub bloqueia arquivos normais que passam de 100 MB e emite alertas em arquivos acima de 50 MB. Um arquivo de 40 MB passa abaixo do limite rígido de 100 MB, então o Git comum aceita o envio (push).
+
+O problema do histórico do Git (Inchaço): Cada vez que você atualizar esse arquivo JSON de 40 MB e fizer um novo commit, o Git vai guardar uma nova versão dele no histórico. Rapidamente o seu repositório vai crescer de tamanho, o que deixa os comandos git clone e os deploys mais lentos.
+
+Alternativa recomendada no futuro: Se optar por commitar o arquivo no futuro, é altamente recomendado usar o Git LFS (Large File Storage) do GitHub para gerenciar arquivos grandes sem estragar o histórico do repositório, ou colocar o arquivo no .gitignore e gerá-lo em tempo de build (se preferir baixar o CSV direto no build, caso o tamanho do CSV seja menor ou gerenciável).
+
+2. Comportamento na Vercel
+Tamanho do Build / Deploy: A Vercel compacta e empacota os arquivos do projeto para o servidorless. Um arquivo de 40 MB está dentro dos limites gerais de assets da plataforma, mas ele será copiado para a função ou incluído no pacote estático a cada deploy.
+
+Cuidado com Cold Starts: Como o arquivo JSON tem 40 MB, toda vez que uma instância serverless sofrer um "cold start" (quando o servidor precisa acordar a função do zero), ele precisará ler e fazer o JSON.parse desses 40 MB na memória RAM. Embora seja muito mais rápido do que processar CSVs e construir maps do zero, carregar 40 MB de JSON repetidas vezes pode gerar pequenos picos de uso de memória na função se houver muitas requisições simultâneas em instâncias novas.

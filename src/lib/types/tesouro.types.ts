@@ -36,4 +36,5 @@ export type TesouroTituloHistorico = {
   items: TesouroTitulo[]
   fetchedAt: string
   total: number // total items before filtering/limit
+  latestDataBase: string // the latest database date of the dataset
 }
