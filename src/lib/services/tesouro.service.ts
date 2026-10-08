@@ -2,7 +2,9 @@ import { unstable_cache, revalidateTag } from "next/cache"
 import { chunkCSV, parseAndMapChunks } from "../parsers/tesouro.parser"
 import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
-import { TESOURO_CSV_URL } from "../constants"
+import { TESOURO_CSV_URL, USE_LOCAL_STATIC_MAP } from "../constants"
+import fs from "fs"
+import path from "path"
 
 /**
  * TTL for the remote HEAD check wrapped in Next.js cache (e.g., 5 minutes = 300 seconds).
@@ -37,6 +39,33 @@ const localFallbackState: {
   lastModifiedCache: null,
   lastHeadCheckTimestamp: 0,
   chunksTimestamp: 0,
+}
+
+/**
+ * Loads the pre-generated static map from the local project directory if USE_LOCAL_STATIC_MAP is enabled.
+ * Returns null if the file does not exist or if loading fails, ensuring graceful degradation.
+ */
+function loadLocalStaticMap(): Map<string, TesouroTitulo[]> | null {
+  if (!USE_LOCAL_STATIC_MAP) {
+    return null
+  }
+
+  const mapFilePath = path.join(process.cwd(), "src/lib/data/tesouro-map.json")
+
+  if (!fs.existsSync(mapFilePath)) {
+    console.warn(`[TesouroData] Local static map file not found at: ${mapFilePath}. Returning null (title not found).`)
+    return null
+  }
+
+  try {
+    console.log("[TesouroData] Loading static map from local project file...")
+    const fileContent = fs.readFileSync(mapFilePath, "utf-8")
+    const entries: [string, TesouroTitulo[]][] = JSON.parse(fileContent)
+    return new Map(entries)
+  } catch (error) {
+    console.warn("[TesouroData] Failed to parse local static map file:", error)
+    return null
+  }
 }
 
 // Performs a lightweight HEAD request using the global distributed cache layer.
@@ -291,6 +320,40 @@ function getLatestDataBase(data: TesouroTitulo[]): string | null {
  * Replaces the local in-memory lock with a distributed Next.js cache.
  */
 export async function getTesouroData(): Promise<TesouroCache> {
+  const fetchDate = new Date().toISOString()
+
+  // LOCAL STATIC MAP BYPASS: If enabled, load directly from the local project file
+  if (USE_LOCAL_STATIC_MAP) {
+    const localMap = loadLocalStaticMap()
+
+    if (!localMap) {
+      return {
+        data: [],
+        map: new Map<string, TesouroTitulo[]>(),
+        fetchedAt: fetchDate,
+        latestDataBase: null,
+        expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
+      }
+    }
+
+    // Flatten map entries back into the data array if needed, or extract latest date
+    const allData: TesouroTitulo[] = []
+    for (const items of localMap.values()) {
+      allData.push(...items)
+    }
+
+    const latestDataBase = getLatestDataBase(allData)
+
+    console.log("[TesouroData] getTesouroData - Serving from local static map file...")
+    return {
+      data: allData,
+      map: localMap,
+      fetchedAt: fetchDate,
+      latestDataBase,
+      expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
+    }
+  }
+
   /**
    * 1. Get total number of chunks from the distributed cache.
    * This serves as the global coalescing point across serverless instances.
@@ -302,12 +365,11 @@ export async function getTesouroData(): Promise<TesouroCache> {
    */
   if (totalChunks === 0) {
     console.log("[TesouroData] Dataset is empty, returning empty payload...")
-    const fetchedAt = new Date().toISOString()
 
     return {
       data: [],
       map: new Map<string, TesouroTitulo[]>(),
-      fetchedAt,
+      fetchedAt: fetchDate,
       latestDataBase: null,
       expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
     }
@@ -421,29 +483,51 @@ export async function findTesouroTitulo(
   const targetKey = normalizeTituloKey(tipo, vencimentoISO)
   let list: TesouroTitulo[] | undefined = undefined
   let fetchedAt = new Date().toISOString()
+  let latestDataBase: string | null = null
 
-  // LAZY READING CONDITION: Safe to use only when limit is explicitly 1 (fetching only the latest record)
-  const isLazyEligible = options?.limit === 1 && !options?.from && !options?.to
+  // LOCAL STATIC MAP FLOW: Directly query the local static map file if enabled
+  if (USE_LOCAL_STATIC_MAP) {
+    const localMap = loadLocalStaticMap()
+    if (!localMap || !localMap.has(targetKey)) {
+      return null
+    }
+    list = localMap.get(targetKey)
 
-  if (isLazyEligible) {
-    console.log("[TesouroData] Lazy reading eligible, reading chunk 0...")
-    const totalChunks = await getCachedTotalChunks()
-    if (totalChunks > 0) {
-      // Fetch only the first chunk where recent records reside
-      const chunk0Content = await getCachedChunkByIndex(0)
-      const { map: chunk0Map } = parseAndMapChunks([chunk0Content])
-
-      if (chunk0Map.has(targetKey)) {
-        list = chunk0Map.get(targetKey)
+    // Compute the global latest database date from all map entries
+    const allItems: TesouroTitulo[] = []
+    for (const items of localMap.values()) {
+      allItems.push(...items)
+    }
+    latestDataBase = getLatestDataBase(allItems)
+  } else {
+    // LAZY READING CONDITION: Safe to use only when limit is explicitly 1 (fetching only the latest record)
+    const isLazyEligible = options?.limit === 1 && !options?.from && !options?.to
+  
+    if (isLazyEligible) {
+      console.log("[TesouroData] Lazy reading eligible, reading chunk 0...")
+      const totalChunks = await getCachedTotalChunks()
+      if (totalChunks > 0) {
+        // Fetch only the first chunk where recent records reside
+        const chunk0Content = await getCachedChunkByIndex(0)
+        const { map: chunk0Map } = parseAndMapChunks([chunk0Content])
+  
+        if (chunk0Map.has(targetKey)) {
+          list = chunk0Map.get(targetKey)
+        }
       }
     }
-  }
-
-  // FULL FALLBACK: If lazy search wasn't eligible, didn't match, or if a full history/range is requested
-  if (!list || list.length === 0) {
-    const fullData = await getTesouroData()
-    fetchedAt = fullData.fetchedAt
-    list = fullData.map.get(targetKey)
+  
+    // FULL FALLBACK: If lazy search wasn't eligible, didn't match, or if a full history/range is requested
+    if (!list || list.length === 0) {
+      const fullData = await getTesouroData()
+      fetchedAt = fullData.fetchedAt
+      latestDataBase = fullData.latestDataBase
+      list = fullData.map.get(targetKey)
+    } else {
+      // If lazy reading matched, we still need the global latestDataBase from full data or chunk 0
+      const fullData = await getTesouroData()
+      latestDataBase = fullData.latestDataBase
+    }
   }
 
   if (!list || list.length === 0) {
@@ -457,6 +541,7 @@ export async function findTesouroTitulo(
   return {
     items: filtered,
     fetchedAt,
+    latestDataBase: latestDataBase || fetchedAt,
     total: list.length,
   }
 }

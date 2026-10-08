@@ -129,7 +129,7 @@ export default async function TituloPage({
       {/* Metadata */}
       <footer className="text-xs text-text-secondary">
         <span id="ultima-atualizacao">
-          Última atualização: {new Date(result.fetchedAt).toLocaleString("pt-BR")}
+          Última atualização: {new Date(result.latestDataBase).toLocaleString("pt-BR")}
         </span>
       </footer>
 

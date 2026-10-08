@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "performance": "node --import tsx scripts/performance-test.ts"
+    "performance": "node --import tsx scripts/performance-test.ts",
+    "generate:tesouro-map": "node --import tsx scripts/generate-tesouro-map.ts"
   },
   "dependencies": {
     "next": "16.2.3",
