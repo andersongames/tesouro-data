@@ -45,3 +45,6 @@ next-env.d.ts
 
 # performance test results
 /performance-test-results
+
+# dataset
+/src/lib/data/precotaxatesourodireto.csv
