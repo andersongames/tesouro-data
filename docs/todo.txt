@@ -1,1 +1,3 @@
+- auto deploy to generate local dataset - via github actions;
+- split dataset file by year;
 - update tests for local dataset flow;
