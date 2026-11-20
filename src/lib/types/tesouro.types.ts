@@ -26,9 +26,9 @@ export type TesouroCSVRow = {
 export type TesouroCache = {
   data: TesouroTitulo[]
   map: Map<string, TesouroTitulo[]>
-  fetchedAt: string
-  expiresAt: number
+  lastUpdatedAt: string
   latestDataBase: string | null
+  expiresAt: number
 }
 
 // Represents the result of a historical query for a Tesouro title
