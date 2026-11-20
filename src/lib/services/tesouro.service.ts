@@ -460,13 +460,13 @@ export async function getTesouroData(): Promise<TesouroCache> {
   console.log("[TesouroData] Reassembling the full CSV...")
   const { data: parsed, map } = parseAndMapChunks(resolvedChunks)
   const latestDataBase = getLatestDataBase(parsed)
-  const fetchedAt = new Date().toISOString()
+  const lastUpdatedAt = new Date().toISOString()
 
   console.log("[TesouroData] getTesouroData - Returning data...")
   return {
     data: parsed,
     map,
-    lastUpdatedAt: fetchedAt,
+    lastUpdatedAt,
     latestDataBase,
     expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
   }
@@ -532,7 +532,7 @@ function filterTituloHistory(
  *
  * Returns:
  *   - Filtered list of entries
- *   - fetchedAt timestamp (when data was retrieved)
+ *   - lastUpdatedAt timestamp (when map data was generated)
  *   - total number of items before filters/limit
  *
  * Notes:
@@ -550,7 +550,7 @@ export async function findTesouroTitulo(
 ): Promise<TesouroTituloHistorico | null> {
   const targetKey = normalizeTituloKey(tipo, vencimentoISO)
   let list: TesouroTitulo[] | undefined = undefined
-  let fetchedAt = new Date().toISOString()
+  let lastUpdatedAt = new Date().toISOString()
   let latestDataBase: string | null = null
 
   // LOCAL STATIC MAP FLOW: Directly query the local static map file if enabled
@@ -565,7 +565,7 @@ export async function findTesouroTitulo(
     }
     list = localMap.get(targetKey)
 
-    fetchedAt = metadata.lastUpdatedAt
+    lastUpdatedAt = metadata.lastUpdatedAt
     latestDataBase = metadata.latestDataBase
   } else {
     // LAZY READING CONDITION: Safe to use only when limit is explicitly 1 (fetching only the latest record)
@@ -588,7 +588,7 @@ export async function findTesouroTitulo(
     // FULL FALLBACK: If lazy search wasn't eligible, didn't match, or if a full history/range is requested
     if (!list || list.length === 0) {
       const fullData = await getTesouroData()
-      fetchedAt = fullData.lastUpdatedAt
+      lastUpdatedAt = fullData.lastUpdatedAt
       latestDataBase = fullData.latestDataBase
       list = fullData.map.get(targetKey)
     } else {
@@ -608,8 +608,8 @@ export async function findTesouroTitulo(
   console.log("[TesouroData] findTesouroTitulo - Returning data...")
   return {
     items: filtered,
-    fetchedAt,
-    latestDataBase: latestDataBase || fetchedAt,
+    lastUpdatedAt: lastUpdatedAt,
+    latestDataBase: latestDataBase,
     total: list.length,
   }
 }

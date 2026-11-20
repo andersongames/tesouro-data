@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const maturity = parsed.data.maturity ?? "all"
     const grouped = parsed.data.grouped ?? false
 
-    const { map, fetchedAt } = await getTesouroData()
+    const { map, lastUpdatedAt } = await getTesouroData()
 
     const today = new Date().toISOString().slice(0, 10)
 
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         items: groupedItems,
         total: groupedItems.length,
-        fetchedAt,
+        lastUpdatedAt,
         maturity,
         grouped: true,
       })
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items: allTitles,
       total: allTitles.length,
-      fetchedAt,
+      lastUpdatedAt,
       maturity,
       grouped: false,
     })

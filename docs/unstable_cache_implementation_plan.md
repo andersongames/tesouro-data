@@ -181,12 +181,12 @@ export async function getTesouroData(): Promise<TesouroCache> {
   const parsed = parseTesouroCSV(fullCsvString)
   const map = buildTituloMap(parsed)
   const latestDataBase = getLatestDataBase(parsed)
-  const fetchedAt = new Date().toISOString()
+  const lastUpdatedAt = new Date().toISOString()
 
   return {
     data: parsed,
     map,
-    fetchedAt,
+    lastUpdatedAt,
     latestDataBase,
     expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
   }
@@ -205,7 +205,7 @@ export async function findTesouroTitulo(
     limit?: number
   }
 ): Promise<TesouroTituloHistorico | null> {
-  const { map, fetchedAt } = await getTesouroData()
+  const { map, lastUpdatedAt } = await getTesouroData()
 
   const key = normalizeTituloKey(tipo, vencimentoISO)
   const list = map.get(key)
@@ -234,7 +234,7 @@ export async function findTesouroTitulo(
 
   return {
     items: filtered,
-    fetchedAt,
+    lastUpdatedAt,
     total: list.length,
   }
 }

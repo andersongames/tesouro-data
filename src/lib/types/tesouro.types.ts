@@ -34,7 +34,7 @@ export type TesouroCache = {
 // Represents the result of a historical query for a Tesouro title
 export type TesouroTituloHistorico = {
   items: TesouroTitulo[]
-  fetchedAt: string
+  lastUpdatedAt: string
+  latestDataBase: string | null // the latest database date of the dataset
   total: number // total items before filtering/limit
-  latestDataBase: string // the latest database date of the dataset
 }

@@ -92,7 +92,7 @@ The `vencimento` parameter supports:
     }
   ],
   "total": 120,
-  "fetchedAt": "2026-04-10T10:00:00.000Z"
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z"
 }
 ```
 
@@ -138,7 +138,7 @@ Returns all titles with optional filters.
     }
   ],
   "total": 350,
-  "fetchedAt": "2026-04-10T10:00:00.000Z",
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
   "grouped": false
 }
 ```
@@ -163,7 +163,7 @@ Returns all titles with optional filters.
     }
   ],
   "total": 25,
-  "fetchedAt": "2026-04-10T10:00:00.000Z",
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
   "grouped": true
 }
 ```
