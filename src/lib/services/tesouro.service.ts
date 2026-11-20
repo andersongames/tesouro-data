@@ -42,28 +42,64 @@ const localFallbackState: {
 }
 
 /**
- * Loads the pre-generated static map from the local project directory if USE_LOCAL_STATIC_MAP is enabled.
- * Returns null if the file does not exist or if loading fails, ensuring graceful degradation.
+ * Loads the pre-generated static map for a specific maturity year from the local datasets directory.
+ * Returns null if the file does not exist or fails to parse, avoiding unnecessary CPU overhead.
  */
-function loadLocalStaticMap(): Map<string, TesouroTitulo[]> | null {
+function loadLocalYearStaticMap(year: string): Map<string, TesouroTitulo[]> | null {
   if (!USE_LOCAL_STATIC_MAP) {
     return null
   }
 
-  const mapFilePath = path.join(process.cwd(), "src/lib/data/tesouro-map.json")
+  const mapFilePath = path.join(process.cwd(), `src/lib/data/datasets/tesouro-${year}.json`)
 
   if (!fs.existsSync(mapFilePath)) {
-    console.warn(`[TesouroData] Local static map file not found at: ${mapFilePath}. Returning null (title not found).`)
+    console.warn(`[TesouroData] Local static map file for year ${year} not found at: ${mapFilePath}.`)
     return null
   }
 
   try {
-    console.log("[TesouroData] Loading static map from local project file...")
+    console.log(`[TesouroData] Loading static map for year ${year} from local file...`)
     const fileContent = fs.readFileSync(mapFilePath, "utf-8")
     const entries: [string, TesouroTitulo[]][] = JSON.parse(fileContent)
     return new Map(entries)
   } catch (error) {
-    console.warn("[TesouroData] Failed to parse local static map file:", error)
+    console.warn(`[TesouroData] Failed to parse local static map file for year ${year}:`, error)
+    return null
+  }
+}
+
+/**
+ * Loads and merges all partitioned static maps from the local datasets directory.
+ * Used when the full dataset context is required.
+ */
+function loadAllLocalStaticMaps(): Map<string, TesouroTitulo[]> | null {
+  if (!USE_LOCAL_STATIC_MAP) {
+    return null
+  }
+
+  const datasetsDir = path.join(process.cwd(), "src/lib/data/datasets")
+
+  if (!fs.existsSync(datasetsDir)) {
+    console.warn(`[TesouroData] Datasets directory not found at: ${datasetsDir}.`)
+    return null
+  }
+
+  try {
+    const files = fs.readdirSync(datasetsDir).filter(file => file.startsWith("tesouro-") && file.endsWith(".json"))
+    const combinedMap = new Map<string, TesouroTitulo[]>()
+
+    for (const file of files) {
+      const filePath = path.join(datasetsDir, file)
+      const fileContent = fs.readFileSync(filePath, "utf-8")
+      const entries: [string, TesouroTitulo[]][] = JSON.parse(fileContent)
+      for (const [key, titles] of entries) {
+        combinedMap.set(key, titles)
+      }
+    }
+
+    return combinedMap
+  } catch (error) {
+    console.warn("[TesouroData] Failed to load all local static maps:", error)
     return null
   }
 }
@@ -324,7 +360,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
 
   // LOCAL STATIC MAP BYPASS: If enabled, load directly from the local project file
   if (USE_LOCAL_STATIC_MAP) {
-    const localMap = loadLocalStaticMap()
+    const localMap = loadAllLocalStaticMaps()
 
     if (!localMap) {
       return {
@@ -487,18 +523,19 @@ export async function findTesouroTitulo(
 
   // LOCAL STATIC MAP FLOW: Directly query the local static map file if enabled
   if (USE_LOCAL_STATIC_MAP) {
-    const localMap = loadLocalStaticMap()
+    const maturityYear = vencimentoISO.slice(0, 4)
+    const localMap = loadLocalYearStaticMap(maturityYear)
+
+    // If the year file does not exist or the title key is not present, return null immediately (no fallback)
     if (!localMap || !localMap.has(targetKey)) {
       return null
     }
     list = localMap.get(targetKey)
 
-    // Compute the global latest database date from all map entries
-    const allItems: TesouroTitulo[] = []
-    for (const items of localMap.values()) {
-      allItems.push(...items)
-    }
-    latestDataBase = getLatestDataBase(allItems)
+    // Retrieve global latest database date efficiently from local datasets
+    const fullData = await getTesouroData()
+    fetchedAt = fullData.fetchedAt
+    latestDataBase = fullData.latestDataBase
   } else {
     // LAZY READING CONDITION: Safe to use only when limit is explicitly 1 (fetching only the latest record)
     const isLazyEligible = options?.limit === 1 && !options?.from && !options?.to

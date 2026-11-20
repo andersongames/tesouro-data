@@ -11,6 +11,23 @@ interface GenerationOptions {
 }
 
 /**
+ * Extracts the most recent "dataBase" date from parsed data entries.
+ */
+function getLatestDataBase(data: TesouroTitulo[]): string | null {
+  if (!data.length) return null
+
+  let latest = data[0].dataBase
+
+  for (const item of data) {
+    if (item.dataBase > latest) {
+      latest = item.dataBase
+    }
+  }
+
+  return latest
+}
+
+/**
  * Fetches the raw CSV content either from the local file system or live remote URL.
  */
 async function fetchCsvContent(source: "local" | "live"): Promise<string> {
@@ -72,6 +89,17 @@ export async function generateDataset(options: GenerationOptions): Promise<void>
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true })
   }
+
+  // Generate and save metadata.json
+  const latestDataBase = getLatestDataBase(parsedData)
+  const metadata = {
+    lastUpdatedAt: new Date().toISOString(),
+    latestDataBase,
+    dataSource: options.source,
+  }
+  const metadataPath = path.join(outputDir, "metadata.json")
+  fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), "utf-8")
+  console.log(`💾 Saved metadata to: ${metadataPath}`)
 
   if (options.outputMode === "partitioned-by-year") {
     const partitionedMaps = partitionMapByMaturityYear(tituloMap)
