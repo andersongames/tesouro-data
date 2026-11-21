@@ -18,6 +18,24 @@ describe("/api/titulos", () => {
     vi.clearAllMocks()
   })
 
+  // Update all tests to interact with the new local dataset structure
+
+  // TESTS TO ADD:
+
+  /**
+   * Teste de Leitura do Metadata:
+   * Validar se a API expõe corretamente (ou se o service carrega com sucesso)
+   * as informações de lastUpdatedAt e latestDataBase vindas do arquivo metadata.json.
+   * NOTE: Verificar se a rota retorna lastUpdatedAt e latestDataBase, se nao, faze-la retornar.
+   */
+
+  /**
+   * Teste de Degradação Graciosa (Fallback):
+   * Simular a ausência ou corrupção do arquivo metadata.json
+   * Ou de um arquivo de ano particionado para garantir que o
+   * serviço não quebra (retornando os fallbacks seguros que definimos anteriormente).
+   */
+
   /**
    * -------------------------------
    * DEFAULT BEHAVIOR

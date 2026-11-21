@@ -11,6 +11,16 @@ const csvPath = resolve(__dirname, "../../fixtures/tesouro.sample.csv")
 const sampleCSV = readFileSync(csvPath, "utf-8")
 
 describe("normalizeTituloKey", () => {
+
+  // TESTS TO ADD:
+
+  /**
+   * Teste de Acentuação e Caracteres Especiais Brasileiros:
+   * Validar se a normalização lida corretamente com acentos
+   * (ex: "Tesouro IPCA+ com Juros Semestrais") transformando-os
+   * em slugs limpos e consistentes sem corromper caracteres essenciais como o +.
+   */
+
   it("should normalize title and vencimento into consistent key", () => {
     const key = normalizeTituloKey(
       "Tesouro Prefixado",
