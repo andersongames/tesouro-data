@@ -1,48 +1,65 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { readFileSync } from "fs"
-import { resolve } from "path"
-
 import { GET } from "@/app/api/titulos/route"
-import { mockFetch } from "../mocks/fetch.mock"
+import { createDatasetMock } from "../mocks/dataset.mock"
 
 /**
- * Load CSV fixture
+ * Initialize and apply the dataset mock based on the CSV fixture using spies.
  */
-const csvPath = resolve("src/tests/fixtures/tesouro.sample.csv")
-const sampleCSV = readFileSync(csvPath, "utf-8")
+const setupMockFileSystem = createDatasetMock()
 
 describe("/api/titulos", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
-  // Update all tests to interact with the new local dataset structure
-
-  // TESTS TO ADD:
-
   /**
-   * Teste de Leitura do Metadata:
-   * Validar se a API expõe corretamente (ou se o service carrega com sucesso)
-   * as informações de lastUpdatedAt e latestDataBase vindas do arquivo metadata.json.
-   * NOTE: Verificar se a rota retorna lastUpdatedAt e latestDataBase, se nao, faze-la retornar.
+   * -------------------------------
+   * METADATA & GRACEFUL DEGRADATION TESTS
+   * -------------------------------
    */
+  it("should include correct metadata fields in the response", async () => {
+    setupMockFileSystem(true)
 
-  /**
-   * Teste de Degradação Graciosa (Fallback):
-   * Simular a ausência ou corrupção do arquivo metadata.json
-   * Ou de um arquivo de ano particionado para garantir que o
-   * serviço não quebra (retornando os fallbacks seguros que definimos anteriormente).
-   */
+    const req = new Request("http://localhost/api/titulos")
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(200)
+
+    const json = await res.json()
+
+    expect(json).toHaveProperty("lastUpdatedAt")
+    expect(json).toHaveProperty("latestDataBase")
+    expect(json).toHaveProperty("dataSource")
+
+    expect(typeof json.lastUpdatedAt).toBe("string")
+    expect(json.latestDataBase).toBe("2026-03-31")
+    expect(json.dataSource).toBe("local")
+  })
+
+  it("should handle graceful degradation when dataset files are missing", async () => {
+    setupMockFileSystem(false)
+
+    const req = new Request("http://localhost/api/titulos")
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(200)
+
+    const json = await res.json()
+
+    // Should return empty items safely without throwing errors
+    expect(json.items).toEqual([])
+  })
 
   /**
    * -------------------------------
    * DEFAULT BEHAVIOR
    * -------------------------------
    */
-  it("should return all titles by default", async () => {
-    mockFetch(sampleCSV)
+it("should return all titles by default", async () => {
+    setupMockFileSystem(true)
 
     const req = new Request("http://localhost/api/titulos")
 
@@ -66,7 +83,7 @@ describe("/api/titulos", () => {
    * -------------------------------
    */
   it("should filter future titles", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulos?maturity=future"
@@ -86,7 +103,7 @@ describe("/api/titulos", () => {
   })
 
   it("should filter expired titles", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulos?maturity=expired"
@@ -111,7 +128,7 @@ describe("/api/titulos", () => {
    * -------------------------------
    */
   it("should return grouped response", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulos?grouped=true"
@@ -134,7 +151,7 @@ describe("/api/titulos", () => {
   })
 
   it("should remove redundant fields in grouped mode", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulos?grouped=true"
@@ -172,7 +189,7 @@ describe("/api/titulos", () => {
    * -------------------------------
    */
   it("should apply maturity filter in grouped mode", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulos?grouped=true&maturity=future"

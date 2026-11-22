@@ -20,6 +20,30 @@ describe("/api/titulo", () => {
    * METADATA & GRACEFUL DEGRADATION TESTS
    * -------------------------------
    */
+
+  it("should include correct metadata fields in the response", async () => {
+    setupMockFileSystem(true)
+
+    const req = new Request(
+      "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01"
+    )
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(200)
+
+    const json = await res.json()
+
+    // Validate that metadata fields are present and correctly structured from metadata.json
+    expect(json).toHaveProperty("lastUpdatedAt")
+    expect(json).toHaveProperty("latestDataBase")
+    expect(json).toHaveProperty("dataSource")
+
+    expect(typeof json.lastUpdatedAt).toBe("string")
+    expect(json.latestDataBase).toBe("2026-03-31")
+    expect(json.dataSource).toBe("local")
+  })
+
   it("should handle graceful degradation when metadata file is missing or corrupted", async () => {
     setupMockFileSystem(false)
 

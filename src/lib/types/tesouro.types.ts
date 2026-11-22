@@ -28,6 +28,7 @@ export type TesouroCache = {
   map: Map<string, TesouroTitulo[]>
   lastUpdatedAt: string
   latestDataBase: string | null
+  dataSource: string
   expiresAt: number
 }
 
@@ -36,5 +37,6 @@ export type TesouroTituloHistorico = {
   items: TesouroTitulo[]
   lastUpdatedAt: string
   latestDataBase: string | null // the latest database date of the dataset
+  dataSource: string
   total: number // total items before filtering/limit
 }

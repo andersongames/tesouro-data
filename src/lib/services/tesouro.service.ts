@@ -109,7 +109,11 @@ function loadAllLocalStaticMaps(): Map<string, TesouroTitulo[]> | null {
  * Returns safe fallback values if the file does not exist or fails to parse, 
  * ensuring graceful degradation and avoiding runtime crashes.
  */
-function loadLocalMetadata(): { lastUpdatedAt: string; latestDataBase: string | null; dataSource: string } {
+function loadLocalMetadata(): {
+  lastUpdatedAt: string;
+  latestDataBase: string | null;
+  dataSource: string
+} {
   const fallbackDate = new Date().toISOString()
 
   if (!USE_LOCAL_STATIC_MAP) {
@@ -402,6 +406,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
         map: new Map<string, TesouroTitulo[]>(),
         lastUpdatedAt: metadata.lastUpdatedAt,
         latestDataBase: metadata.latestDataBase,
+        dataSource: metadata.dataSource,
         expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
       }
     }
@@ -418,6 +423,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
       map: localMap,
       lastUpdatedAt: metadata.lastUpdatedAt,
       latestDataBase: metadata.latestDataBase,
+      dataSource: metadata.dataSource,
       expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
     }
   }
@@ -439,6 +445,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
       map: new Map<string, TesouroTitulo[]>(),
       lastUpdatedAt: fetchDate,
       latestDataBase: null,
+      dataSource: "unknown",
       expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
     }
   }
@@ -468,6 +475,7 @@ export async function getTesouroData(): Promise<TesouroCache> {
     map,
     lastUpdatedAt,
     latestDataBase,
+    dataSource: "unknown",
     expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
   }
 }
@@ -533,6 +541,7 @@ function filterTituloHistory(
  * Returns:
  *   - Filtered list of entries
  *   - lastUpdatedAt timestamp (when map data was generated)
+ *   - latestDataBase date of the latest record on the dataset
  *   - total number of items before filters/limit
  *
  * Notes:
@@ -552,6 +561,7 @@ export async function findTesouroTitulo(
   let list: TesouroTitulo[] | undefined = undefined
   let lastUpdatedAt = new Date().toISOString()
   let latestDataBase: string | null = null
+  let dataSource = "unknown"
 
   // LOCAL STATIC MAP FLOW: Directly query the local static map file if enabled
   if (USE_LOCAL_STATIC_MAP) {
@@ -567,6 +577,7 @@ export async function findTesouroTitulo(
 
     lastUpdatedAt = metadata.lastUpdatedAt
     latestDataBase = metadata.latestDataBase
+    dataSource = metadata.dataSource
   } else {
     // LAZY READING CONDITION: Safe to use only when limit is explicitly 1 (fetching only the latest record)
     const isLazyEligible = options?.limit === 1 && !options?.from && !options?.to
@@ -608,8 +619,9 @@ export async function findTesouroTitulo(
   console.log("[TesouroData] findTesouroTitulo - Returning data...")
   return {
     items: filtered,
-    lastUpdatedAt: lastUpdatedAt,
-    latestDataBase: latestDataBase,
+    lastUpdatedAt,
+    latestDataBase,
+    dataSource,
     total: list.length,
   }
 }
