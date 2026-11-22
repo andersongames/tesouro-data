@@ -10,6 +10,13 @@ interface GenerationOptions {
   customOutputDir?: string
 }
 
+export type TesouroMetadata = {
+  lastUpdatedAt: string
+  latestDataBase: string | null
+  dataSource: string
+  remoteVersion?: string | null
+}
+
 /**
  * Extracts the most recent "dataBase" date from parsed data entries.
  * 
@@ -29,6 +36,27 @@ export function getLatestDataBase(data: TesouroTitulo[]): string | null {
   }
 
   return latest
+}
+
+/**
+ * Fetches remote HEAD headers (Last-Modified or ETag) to check for updates without downloading the full CSV.
+ */
+async function fetchRemoteVersion(): Promise<string | null> {
+  try {
+    const response = await fetch(TESOURO_CSV_URL, {
+      method: "HEAD",
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    return response.headers.get("last-modified") || response.headers.get("etag")
+  } catch (error) {
+    console.warn("[DatasetGenerator] Failed to fetch remote HEAD version:", error)
+    return null
+  }
 }
 
 /**
@@ -78,10 +106,52 @@ export function partitionMapByMaturityYear(tituloMap: Map<string, TesouroTitulo[
 }
 
 /**
- * Core function to generate and save datasets based on specified options.
+ * Core function to generate and save datasets based on specified options,
+ * skipping heavy CSV download and processing if the source has not changed.
  */
 export async function generateDataset(options: GenerationOptions): Promise<void> {
   console.log(`🔍 Starting dataset generation (Source: ${options.source}, Mode: ${options.outputMode})...`)
+
+  const outputDir = options.customOutputDir || path.join(process.cwd(), "src/lib/data/datasets")
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true })
+  }
+
+  // Get existing metadata
+  const metadataPath = path.join(outputDir, "metadata.json")
+  let existingMetadata: TesouroMetadata | null = null
+
+  if (fs.existsSync(metadataPath)) {
+    try {
+      existingMetadata = JSON.parse(fs.readFileSync(metadataPath, "utf-8"))
+    } catch {
+      existingMetadata = null
+    }
+  }
+
+  let currentRemoteVersion: string | null = null
+
+  // If source is 'live', check HEAD request to avoid unnecessary downloads
+  if (options.source === "live") {
+    currentRemoteVersion = await fetchRemoteVersion()
+
+    if (existingMetadata && existingMetadata.remoteVersion && existingMetadata.remoteVersion === currentRemoteVersion) {
+      console.log("⚡ Remote CSV has not changed (matched HEAD version). Skipping CSV download and map generation.")
+      
+      const updatedMetadata = {
+        lastUpdatedAt: new Date().toISOString(),
+        latestDataBase: existingMetadata.latestDataBase,
+        dataSource: options.source,
+        remoteVersion: currentRemoteVersion,
+      }
+      
+      fs.writeFileSync(metadataPath, JSON.stringify(updatedMetadata, null, 2), "utf-8")
+      console.log(`💾 Updated metadata timestamp at: ${metadataPath}`)
+      return
+    }
+  } else {
+    console.log("📂 Local source selected. Forcing full dataset generation...")
+  }
 
   const csvContent = await fetchCsvContent(options.source)
   console.log("⚙️ Parsing CSV data and building maps...")
@@ -89,19 +159,14 @@ export async function generateDataset(options: GenerationOptions): Promise<void>
   const parsedData = parseTesouroCSV(csvContent)
   const tituloMap = buildTituloMap(parsedData)
 
-  const outputDir = options.customOutputDir || path.join(process.cwd(), "src/lib/data/datasets")
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true })
-  }
-
   // Generate and save metadata.json
   const latestDataBase = getLatestDataBase(parsedData)
   const metadata = {
     lastUpdatedAt: new Date().toISOString(),
     latestDataBase,
     dataSource: options.source,
+    remoteVersion: currentRemoteVersion,
   }
-  const metadataPath = path.join(outputDir, "metadata.json")
   fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), "utf-8")
   console.log(`💾 Saved metadata to: ${metadataPath}`)
 

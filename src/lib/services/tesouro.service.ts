@@ -1,3 +1,4 @@
+import { TesouroMetadata } from "../../../scripts/helpers/dataset-generator.helper"
 import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
 import fs from "fs"
@@ -63,11 +64,7 @@ function loadAllLocalStaticMaps(): Map<string, TesouroTitulo[]> | null {
  * Loads pre-generated dataset metadata from the local datasets directory.
  * Returns safe fallback values if the file does not exist or fails to parse.
  */
-function loadLocalMetadata(): {
-  lastUpdatedAt: string;
-  latestDataBase: string | null;
-  dataSource: string
-} {
+export function loadLocalMetadata(): TesouroMetadata {
   const fallbackDate = new Date().toISOString()
   const metadataFilePath = path.join(process.cwd(), "src/lib/data/datasets/metadata.json")
 
