@@ -1,37 +1,37 @@
 # 📚 TesouroService Technical Documentation
 
-This document details the architectural design and execution flow of the updated `tesouro.service.ts`, which manages data retrieval, distributed caching, and performance optimizations for the Tesouro Direto dataset.
+This document details the architectural design and execution flow of the updated `tesouro.service.ts`, which manages local static dataset retrieval, yearly partitioning, metadata management, and performance optimizations for the Tesouro Direto data architecture.
 
 ---
 
 ## ⚡ 1. Core Architectural Features
 
-*   **🌐 Distributed Caching with Next.js (`unstable_cache`)**: Leverages Next.js data cache layers to globally throttle and share cache states across distributed serverless instances.
-*   **🧠 Local-First RAM Cache & Fallback**: Implements short in-memory Time-To-Live (TTL) states in local RAM to bypass distributed cache overhead during frequent sequential calls. It also serves as a resilient fallback mechanism in non-Next.js or testing environments.
-*   **📡 Lightweight `HEAD` Request & TTL**: Periodically checks for remote dataset updates using a lightweight HTTP `HEAD` request, wrapped in a 5-minute global TTL to prevent excessive external network calls.
-*   **🚀 Local-First Priority Strategy**: Checks local instance RAM before querying distributed cache layers, optimizing execution times to microsecond ranges.
-*   **⚡ Lazy Reading Optimization**: Intercepts queries where `limit === 1` (fetching only the most recent record) to parse solely the primary data chunk, avoiding full dataset assembly and parsing overhead.
+-   **📂 Static Local Dataset Architecture**: Relies on pre-generated static JSON files stored locally, completely eliminating runtime remote HTTP downloads, distributed caching overhead, and external latency during user requests.
+-   **📅 Yearly Partitioning (`tesouro-YYYY.json`)**: Datasets are partitioned by maturity year, allowing the service to target and load only the specific year file required for a query instead of handling a massive monolithic payload.
+-   **🏷️ Metadata Management (`metadata.json`)**: Tracks essential dataset parameters such as the last update timestamp (`lastUpdatedAt`), the latest database reference date (`latestDataBase`), and the origin data source (`dataSource`).
+-   **🛡️ Graceful Degradation & Fallback**: Safely handles missing dataset files, unparsable contents, or absent metadata by returning safe fallback structures or `null` without crashing the application.
+-   **🎯 Direct Key Resolution & Filtering**: Combines normalized title keys (`normalizeTituloKey`) with targeted file system lookups and flexible history filtering (`from`, `to`, `limit`).
 
 ---
 
 ## ⚙️ 2. Execution & Caching Flow
 
-### A. Remote Change Validation (`validateAndPurgeCacheIfNeeded`)
-*   **🔍 HEAD Check**: Invokes `getCachedLastModified()` to retrieve the remote resource's `last-modified` or `etag` headers.
-*   **⏳ Global Throttling**: The header check is guarded by `HEAD_CACHE_TTL_SECONDS` (5 minutes) within `unstable_cache`.
-*   **⚡ Local RAM Optimization**: If checked recently within `LOCAL_RAM_HEAD_TTL_MS` (30 seconds), the cached header is returned instantly from local memory.
-*   **🗑️ Purge Trigger**: If the fetched remote header differs from the locally tracked state, the service invokes `revalidateTag("tesouro-cache")` and resets local RAM chunks (`localFallbackState.chunks = null`) to force a fresh pull.
+### A. Metadata Loading (`loadLocalMetadata`)
+-   **📁 File Verification**: Inspects the local datasets directory for `metadata.json`.
+-   **🛡️ Safe Fallbacks**: If the metadata file is missing or fails to parse, it logs a warning and returns safe runtime fallback values (`lastUpdatedAt` set to current ISO timestamp, `latestDataBase` as `null`, and `dataSource` as `"unknown"`).
 
-### B. Chunk Management & Local Storage (`getLocalChunks`)
-*   The raw CSV dataset is split into manageable string segments (chunks) via `chunkCSV`.
-*   **🤝 In-Flight Coalescing**: Uses `inFlightPromise` to prevent duplicate concurrent CSV downloads when multiple requests hit a cold cache simultaneously.
+### B. Yearly Partition Mapping (`loadLocalYearStaticMap`)
+-   **🎯 Target Year Extraction**: Extracts the 4-digit maturity year from the requested title's maturity ISO date (`vencimentoISO.slice(0, 4)`).
+-   **📄 Targeted File Read**: Locates and reads `tesouro-[year].json` directly from the local datasets path.
+-   **🗺️ Map Reconstruction**: Parses the stored JSON entries array back into a performant JavaScript `Map<string, TesouroTitulo[]>` for O(1) key lookups.
 
 ### C. Full Dataset Assembly (`getTesouroData`)
-1.  **🔢 Total Chunks Resolution**: Calls `getCachedTotalChunks()`, which triggers remote validation and queries the distributed cache for chunk lengths.
-2.  **🔀 Parallel Fetching**: Gathers all chunk contents concurrently using `getCachedChunkByIndex(i)`.
-3.  **🧩 Reassembly & Mapping**: Rebuilds the full CSV text in memory, parses and maps records via `parseAndMapChunks()`, computes the latest database date, and returns a structured `TesouroCache` payload.
+1.  **📂 Directory Scan**: Reads all partitioned static JSON files starting with `tesouro-` from the datasets directory via `loadAllLocalStaticMaps()`.
+2.  **🧩 Map Merging**: Combines individual year entries into a unified master map and flattens records into the primary data array.
+3.  **📦 Payload Return**: Assembles and returns a complete `TesouroCache` structure containing the merged data, master map, and up-to-date metadata attributes.
 
-### D. Targeted Record Lookup & Lazy Reading (`findTesouroTitulo`)
-*   **🎯 Lazy Eligibility Check**: Validates if the query satisfies optimization criteria (`options.limit === 1` with no active date range filters).
-*   **⚡ Lazy Execution Path**: If eligible, the service fetches only `chunk0Content`, parses it independently, and resolves the target key instantly without processing the remaining chunks.
-*   **🔄 Full Fallback Path**: If full history or filters are requested, it delegates to `getTesouroData()`, filters the resulting record list using `filterTituloHistory()`, and returns the historical dataset structure.
+### D. Targeted Record Lookup & History Filtering (`findTesouroTitulo`)
+-   **🔑 Key Normalization**: Computes the target lookup key using `normalizeTituloKey(tipo, vencimentoISO)`.
+-   **📅 Partition Isolation**: Loads strictly the corresponding year map via `loadLocalYearStaticMap(maturityYear)`, avoiding full dataset parsing overhead.
+-   **🔍 Existence & Data Validation**: Returns `null` immediately if the year file or target key does not exist.
+-   **⚙️ Historical Filtering**: Applies optional date range constraints (`from`, `to`) and size restrictions (`limit`) to the retrieved history list through `filterTituloHistory()`, returning a structured `TesouroTituloHistorico` payload sorted by database date descending.
