@@ -166,4 +166,38 @@ describe("tesouro.parser", () => {
       expect(list[0].tipo).toBe("Tesouro Selic")
     })
   })
+
+  describe("Map Serialization / Deserialization", () => {
+    it("should serialize a Map to JSON entries array and deserialize it back without data loss", () => {
+      const mockData = [
+        {
+          tipo: "Tesouro Selic",
+          vencimento: "2028-03-01",
+          dataBase: "2026-03-31",
+          taxaCompra: 0.01,
+          taxaVenda: 0.02,
+          puCompra: 18707.93,
+          puVenda: 18694.15,
+          puBase: 18694.15,
+        },
+      ]
+
+      const originalMap = buildTituloMap(mockData)
+
+      // Serialize Map to entries array and convert to JSON string (simulating file write)
+      const entriesArray = Array.from(originalMap.entries())
+      const jsonString = JSON.stringify(entriesArray)
+
+      // Deserialize JSON string back to entries and reconstruct the Map (simulating file read)
+      const parsedEntries = JSON.parse(jsonString) as [string, unknown][]
+      const reconstructedMap = new Map(parsedEntries)
+
+      expect(reconstructedMap.size).toBe(originalMap.size)
+
+      for (const [key, value] of originalMap.entries()) {
+        expect(reconstructedMap.has(key)).toBe(true)
+        expect(reconstructedMap.get(key)).toEqual(value)
+      }
+    })
+  })
 })
