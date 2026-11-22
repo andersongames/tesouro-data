@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest",
     "performance": "node --import tsx scripts/performance-test.ts",
-    "generate:tesouro-map": "node --import tsx scripts/generate-tesouro-map.ts"
+    "generate:tesouro-map": "node --import tsx scripts/generate-tesouro-map.ts",
+    "generate:dataset:local": "tsx scripts/generate-dataset-local.ts",
+    "generate:dataset:live": "tsx scripts/generate-dataset-live.ts"
   },
   "dependencies": {
     "next": "16.2.3",

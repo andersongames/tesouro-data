@@ -4,31 +4,31 @@ Tesouro Data is a lightweight web application that allows users to search, visua
 
 The project focuses on:
 
-* ⚡ **High performance** (optimized caching strategy)
-* 🔎 **Simple search experience**
-* 🔗 **Easy integration** via URL, scraping, or API
-* 🧱 **Clean architecture** and maintainable code
+- ⚡ **High performance** (pre-generated static partitioned datasets)
+- 🔎 **Simple search experience**
+- 🔗 **Easy integration** via URL, scraping, or API
+- 🧱 **Clean architecture** and maintainable code
 
 ## ✨ Features
 
-* 🔍 Search by bond type and maturity date
-* 📄 Dedicated result page optimized for scraping
-* 📈 Historical data support
-* 🔗 Direct access via URL
-* ⚡ In-memory caching with smart invalidation
-* 🧪 Fully testable service layer
+- 🔍 Search by bond type and maturity date
+- 📄 Dedicated result page optimized for scraping
+- 📈 Historical data support
+- 🔗 Direct access via URL
+- ⚡ Partitioned local JSON datasets (`tesouro-YYYY.json`) for O(1) lookup and instant responses
+- 🧪 Fully testable service layer & automated CI pipeline
 
 ## 🗂️ Data Source
 
 All data comes from the official Brazilian Treasury transparency portal:
 
 * 📥 **Dataset page:** [https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1](https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1)
-* 📄 **CSV file (used by this application):** [https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/precotaxatesourodireto.csv](https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/precotaxatesourodireto.csv)
+* 📄 **CSV file (used by the dataset generation scripts):** [https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/precotaxatesourodireto.csv](https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/precotaxatesourodireto.csv)
 
 ### Notes
-* Data is updated daily
-* Dates follow ISO format: `YYYY-MM-DD`
-* The application applies normalization and indexing for fast access
+- Data is updated daily via automated generation scripts
+- Dates follow ISO format: `YYYY-MM-DD`
+- Datasets are partitioned by maturity year and indexed for fast access
 
 ## 🌐 Usage
 
@@ -92,7 +92,9 @@ The `vencimento` parameter supports:
     }
   ],
   "total": 120,
-  "fetchedAt": "2026-04-10T10:00:00.000Z"
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
+  "latestDataBase": "2026-04-10",
+  "dataSource": "live"
 }
 ```
 
@@ -138,7 +140,9 @@ Returns all titles with optional filters.
     }
   ],
   "total": 350,
-  "fetchedAt": "2026-04-10T10:00:00.000Z",
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
+  "latestDataBase": "2026-04-10",
+  "dataSource": "live",
   "grouped": false
 }
 ```
@@ -163,7 +167,9 @@ Returns all titles with optional filters.
     }
   ],
   "total": 25,
-  "fetchedAt": "2026-04-10T10:00:00.000Z",
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
+  "latestDataBase": "2026-04-10",
+  "dataSource": "live",
   "grouped": true
 }
 ```
@@ -206,7 +212,7 @@ console.log({ titulo, taxa })
 * ⚛️ **Next.js** (App Router)
 * 🟦 **TypeScript**
 * 🎨 **Tailwind CSS**
-* 📡 **Native Fetch API**
+* 🗂️ **Static Partitioned JSON Datasets**
 * 🧪 **Vitest** (Testing)
 
 ## ⚙️ Running Locally
@@ -243,15 +249,15 @@ npm test
 
 ## 🧠 Architecture Highlights
 
-* 🧩 Separation of concerns (services, utils, UI)
-* ⚡ In-memory cache with TTL + smart refresh strategy
-* 🔁 Deduplicated fetch with in-flight promise control
-* 📦 CSV parsing + indexed lookup (O(1) access)
+* 🧩 Separation of concerns (services, parsers, automation scripts, UI)
+* ⚡ Static local dataset architecture partitioned by maturity year (tesouro-YYYY.json)
+* 🔁 Smart HEAD version check during dataset generation to avoid redundant downloads
+* 📦 Indexed Map serialization for instant O(1) lookups without runtime CSV parsing
 
 ## 📌 Notes
 
-* Data is refreshed automatically based on dataset updates
-* Cache avoids unnecessary downloads
+* Datasets and metadata.json are generated and updated automatically via scripts
+* Zero external network latency during API or page requests
 * Designed for both human usage and machine consumption
 
 ## 📄 License

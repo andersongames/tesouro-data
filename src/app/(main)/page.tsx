@@ -47,7 +47,7 @@ function extractOptions(map: Map<string, TesouroTitulo[]>) {
 }
 
 export default async function SearchPage() {
-  const { map } = await getTesouroData()
+  const { map, lastUpdatedAt } = await getTesouroData()
 
   const { tipos, vencimentosMap } = extractOptions(map)
 
@@ -59,6 +59,10 @@ export default async function SearchPage() {
         </h1>
 
         <SearchForm tipos={tipos} vencimentosMap={vencimentosMap} />
+
+        <p className="text-xs text-text-secondary mt-6">
+          Última atualização: {new Date(lastUpdatedAt).toLocaleString("pt-BR")}
+        </p>
       </div>
     </main>
   )

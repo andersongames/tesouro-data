@@ -1,405 +1,123 @@
-import { unstable_cache, revalidateTag } from "next/cache"
-import { chunkCSV, parseAndMapChunks } from "../parsers/tesouro.parser"
+import { TesouroMetadata } from "../../../scripts/helpers/dataset-generator.helper"
 import { TesouroCache, TesouroTitulo, TesouroTituloHistorico } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
-import { TESOURO_CSV_URL, USE_LOCAL_STATIC_MAP } from "../constants"
 import fs from "fs"
 import path from "path"
 
-/**
- * TTL for the remote HEAD check wrapped in Next.js cache (e.g., 5 minutes = 300 seconds).
- * This ensures that across distributed serverless instances, the HEAD check 
- * is globally throttled by the Next.js Data Cache layer.
- */
-const HEAD_CACHE_TTL_SECONDS = 5 * 60
-
-// Cache TTL set to 1 hour (expressed in seconds for unstable_cache)
+// Cache TTL set to 1 hour (expressed in milliseconds for expiration timestamp)
 const CACHE_TTL_SECONDS = 60 * 60
 
 /**
- * Short local RAM TTLs for fast in-memory lookups (avoiding distributed cache overhead).
+ * Loads the pre-generated static map for a specific maturity year from the local datasets directory.
+ * Returns null if the file does not exist or fails to parse.
  */
-const LOCAL_RAM_HEAD_TTL_MS = 30 * 1000 // 30 seconds
-const LOCAL_RAM_CHUNKS_TTL_MS = 60 * 1000 // 1 minute
-
-/**
- * Local memory state used as a local-first RAM cache and fallback.
- */
-const localFallbackState: {
-  chunks: string[] | null
-  inFlightPromise: Promise<string[]> | null
-  inFlightHeadPromise: Promise<string | null> | null
-  lastModifiedCache: string | null
-  lastHeadCheckTimestamp: number
-  chunksTimestamp: number
-} = {
-  chunks: null,
-  inFlightPromise: null,
-  inFlightHeadPromise: null,
-  lastModifiedCache: null,
-  lastHeadCheckTimestamp: 0,
-  chunksTimestamp: 0,
-}
-
-/**
- * Loads the pre-generated static map from the local project directory if USE_LOCAL_STATIC_MAP is enabled.
- * Returns null if the file does not exist or if loading fails, ensuring graceful degradation.
- */
-function loadLocalStaticMap(): Map<string, TesouroTitulo[]> | null {
-  if (!USE_LOCAL_STATIC_MAP) {
-    return null
-  }
-
-  const mapFilePath = path.join(process.cwd(), "src/lib/data/tesouro-map.json")
+function loadLocalYearStaticMap(year: string): Map<string, TesouroTitulo[]> | null {
+  const mapFilePath = path.join(process.cwd(), "src/lib/data/datasets", `tesouro-${year}.json`)
 
   if (!fs.existsSync(mapFilePath)) {
-    console.warn(`[TesouroData] Local static map file not found at: ${mapFilePath}. Returning null (title not found).`)
+    console.warn(`[TesouroData] Local static map file for year ${year} not found at: ${mapFilePath}.`)
     return null
   }
 
   try {
-    console.log("[TesouroData] Loading static map from local project file...")
     const fileContent = fs.readFileSync(mapFilePath, "utf-8")
     const entries: [string, TesouroTitulo[]][] = JSON.parse(fileContent)
     return new Map(entries)
   } catch (error) {
-    console.warn("[TesouroData] Failed to parse local static map file:", error)
+    console.warn(`[TesouroData] Failed to parse local static map file for year ${year}:`, error)
     return null
   }
 }
 
-// Performs a lightweight HEAD request using the global distributed cache layer.
-async function fetchLastModified(): Promise<string | null> {
-  const response = await fetch(TESOURO_CSV_URL, {
-    method: "HEAD",
-    cache: "no-store",
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Tesouro CSV: ${response.status}`)
-  }
-
-  return response.headers.get("last-modified") || response.headers.get("etag")
-}
-
 /**
- * Fetches Last Modified locally.
- * Uses in-flight request coalescing to prevent duplicate concurrent HEAD requests
- * and falls back to Next.js unstable_cache when available.
+ * Loads and merges all partitioned static maps from the local datasets directory.
  */
-async function getLocalLastModified(): Promise<string | null> {
-  // Coalesce concurrent calls in-memory (vital for tests and high concurrency)
-  if (localFallbackState.inFlightHeadPromise) {
-    return localFallbackState.inFlightHeadPromise
-  }
+function loadAllLocalStaticMaps(): Map<string, TesouroTitulo[]> | null {
+  const datasetsDir = path.join(process.cwd(), "src/lib/data/datasets")
 
-  localFallbackState.inFlightHeadPromise = (async () => {
-    try {
-      const lastModified = await fetchLastModified()
-  
-      return lastModified
-    } catch (error) {
-        console.warn("[TesouroData] Failed to direct fetch remote HEAD headers:", error)
-        return null
-    }
-  })().finally(() => {
-    localFallbackState.inFlightHeadPromise = null
-  })
-
-  return localFallbackState.inFlightHeadPromise
-}
-
-/**
- * Cached function to fetch the remote Last-Modified header globally,
- * implementing a Local-First RAM cache to skip distributed lookups for frequent calls.
- */
-async function getCachedLastModified(): Promise<string | null> {
-  const now = Date.now()
-
-  // LOCAL FIRST: If the last HEAD check was performed recently in this instance's RAM,
-  // return it immediately in microseconds without touching the distributed cache layer.
-  if (
-    localFallbackState.lastModifiedCache &&
-    now - localFallbackState.lastHeadCheckTimestamp < LOCAL_RAM_HEAD_TTL_MS
-  ) {
-    console.log("[TesouroData] Serving HEAD from local RAM cache (TTL active)")
-    return localFallbackState.lastModifiedCache
+  if (!fs.existsSync(datasetsDir)) {
+    console.warn(`[TesouroData] Datasets directory not found at: ${datasetsDir}.`)
+    return null
   }
 
   try {
-    const result = await unstable_cache(
-      async () => {
-        console.log("[TesouroData] GLOBAL CACHE EXPIRED - Executing remote HEAD request...")
-        return getLocalLastModified()
-      },
-      ["tesouro-remote-head-check"],
-      { revalidate: HEAD_CACHE_TTL_SECONDS, tags: ["tesouro-head-cache"] }
-    )()
+    const files = fs.readdirSync(datasetsDir).filter(file => file.startsWith("tesouro-") && file.endsWith(".json"))
+    const combinedMap = new Map<string, TesouroTitulo[]>()
 
-    // Update local RAM timestamp on successful retrieval
-    localFallbackState.lastHeadCheckTimestamp = Date.now()
-    return result
-  } catch (error) {
-    console.warn("[TesouroData] unstable_cache unavailable or failed, using local in-flight coalescing:", error)
-    const result = await getLocalLastModified()
-    localFallbackState.lastHeadCheckTimestamp = Date.now()
-    return result
-  }
-}
-
-/**
- * Fetches the raw Tesouro Direto CSV file from the official source.
- * Logs only when an actual external HTTP request occurs.
- */
-async function fetchRawTesouroCSV(): Promise<string> {
-  console.log("[TesouroData] Downloading CSV from source...")
-
-  const response = await fetch(TESOURO_CSV_URL, {
-    cache: "no-store",
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Tesouro CSV: ${response.status}`)
-  }
-
-  const buffer = await response.arrayBuffer()
-  const decoder = new TextDecoder("latin1")
-
-  return decoder.decode(buffer)
-}
-
-/**
- * Fetches and splits the CSV into chunks locally (used by the fallback mechanism).
- */
-async function getLocalChunks(): Promise<string[]> {
-  if (localFallbackState.chunks) {
-    return localFallbackState.chunks
-  }
-
-  if (localFallbackState.inFlightPromise) {
-    return localFallbackState.inFlightPromise
-  }
-
-  localFallbackState.inFlightPromise = (async () => {
-    const fullCsv = await fetchRawTesouroCSV()
-    
-    console.log("[TesouroData] Splitting CSV in chunks (Local Fallback)...")
-    const chunks = chunkCSV(fullCsv)
-
-    localFallbackState.chunks = chunks
-    return chunks
-  })().finally(() => {
-    localFallbackState.inFlightPromise = null
-  })
-
-  return localFallbackState.inFlightPromise
-}
-
-/**
- * Validates remote changes via HEAD request and invalidates cache tag if updated.
- */
-async function validateAndPurgeCacheIfNeeded(): Promise<void> {
-  const remoteModified = await getCachedLastModified()
-
-  console.log(`[TesouroData] Remote dataset date: ${remoteModified}`)
-
-  if (remoteModified && localFallbackState.lastModifiedCache) {
-    if (remoteModified !== localFallbackState.lastModifiedCache) {
-      console.log("[TesouroData] Remote dataset updated! Purging cache tag...")
-
-      // Safely attempt to revalidate the cache tag, catching errors outside Next.js runtime/tests
-      try {
-        revalidateTag("tesouro-cache", "max")
-      } catch (error) {
-        console.warn("[TesouroData] revalidateTag skipped or unavailable (test/non-Next environment):", error)
+    for (const file of files) {
+      const filePath = path.join(datasetsDir, file)
+      const fileContent = fs.readFileSync(filePath, "utf-8")
+      const entries: [string, TesouroTitulo[]][] = JSON.parse(fileContent)
+      for (const [key, titles] of entries) {
+        combinedMap.set(key, titles)
       }
-      // Reset local memory fallback
-      localFallbackState.chunks = null
     }
-  }
 
-  if (remoteModified) {
-    localFallbackState.lastModifiedCache = remoteModified
-  }
-}
-
-/**
- * Cached function to retrieve total lines and chunk count using Local-First RAM priority.
- */
-async function getCachedTotalChunks(): Promise<number> {
-  const now = Date.now()
-
-  // LOCAL FIRST: Return chunk length directly from RAM if within the short local TTL.
-  if (
-    localFallbackState.chunks &&
-    now - localFallbackState.chunksTimestamp < LOCAL_RAM_CHUNKS_TTL_MS
-  ) {
-    console.log("[TesouroData] Serving TotalChunks from local RAM cache (TTL active)")
-    return localFallbackState.chunks.length
-  }
-
-  await validateAndPurgeCacheIfNeeded()
-
-  try {
-    const total = await unstable_cache(
-      async () => {
-        console.log("[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh total chunks")
-        const chunks = await getLocalChunks()
-        localFallbackState.chunksTimestamp = Date.now()
-        return chunks.length
-      },
-      ["tesouro-total-chunks"],
-      { revalidate: CACHE_TTL_SECONDS, tags: ["tesouro-cache"] }
-    )()
-    return total
+    return combinedMap
   } catch (error) {
-    console.warn("[TesouroData] unstable_cache failed for total chunks, using local fallback:", error)
-    const chunks = await getLocalChunks()
-    localFallbackState.chunksTimestamp = Date.now()
-    return chunks.length
+    console.warn("[TesouroData] Failed to load all local static maps:", error)
+    return null
   }
 }
 
 /**
- * Cached function to retrieve a specific chunk by its index with Local-First RAM priority.
+ * Loads pre-generated dataset metadata from the local datasets directory.
+ * Returns safe fallback values if the file does not exist or fails to parse.
  */
-async function getCachedChunkByIndex(chunkIndex: number): Promise<string> {
-  const now = Date.now()
+export function loadLocalMetadata(): TesouroMetadata {
+  const fallbackDate = new Date().toISOString()
+  const metadataFilePath = path.join(process.cwd(), "src/lib/data/datasets/metadata.json")
 
-  // LOCAL FIRST: Serve chunk directly from instance memory if chunks are fresh in RAM.
-  if (
-    localFallbackState.chunks &&
-    now - localFallbackState.chunksTimestamp < LOCAL_RAM_CHUNKS_TTL_MS
-  ) {
-    console.log("[TesouroData] Serving Chunk from local RAM cache (TTL active)")
-    return localFallbackState.chunks[chunkIndex] || ""
+  if (!fs.existsSync(metadataFilePath)) {
+    console.warn(`[TesouroData] Metadata file not found at: ${metadataFilePath}. Using fallback values.`)
+    return { lastUpdatedAt: fallbackDate, latestDataBase: null, dataSource: "unknown" }
   }
 
   try {
-    return await unstable_cache(
-      async () => {
-        console.log(`[TesouroData] CACHE EXPIRED (or CACHE MISS) - fetching fresh chunk ${chunkIndex}`)
-        const chunks = await getLocalChunks()
-        localFallbackState.chunksTimestamp = Date.now()
-        return chunks[chunkIndex] || ""
-      },
-      [`tesouro-chunk-content-${chunkIndex}`],
-      { revalidate: CACHE_TTL_SECONDS, tags: ["tesouro-cache"] }
-    )()
-  } catch (error) {
-    console.warn(`[TesouroData] unstable_cache failed for chunk ${chunkIndex}, using local fallback:`, error)
-    const chunks = await getLocalChunks()
-    localFallbackState.chunksTimestamp = Date.now()
-    return chunks[chunkIndex] || ""
-  }
-}
-
-/**
- * Extracts the most recent "dataBase" from parsed data
- *
- * Assumes:
- * - dataBase is in ISO format (YYYY-MM-DD)
- * - string comparison works for ordering
- */
-function getLatestDataBase(data: TesouroTitulo[]): string | null {
-  if (!data.length) return null
-
-  let latest = data[0].dataBase
-
-  for (const item of data) {
-    if (item.dataBase > latest) {
-      latest = item.dataBase
+    const fileContent = fs.readFileSync(metadataFilePath, "utf-8")
+    const metadata = JSON.parse(fileContent)
+    return {
+      lastUpdatedAt: metadata.lastUpdatedAt || fallbackDate,
+      latestDataBase: metadata.latestDataBase || null,
+      dataSource: metadata.dataSource || "unknown",
     }
+  } catch (error) {
+    console.warn("[TesouroData] Failed to parse metadata file:", error)
+    return { lastUpdatedAt: fallbackDate, latestDataBase: null, dataSource: "unknown" }
   }
-
-  return latest
 }
 
 /**
- * Main function to retrieve and assemble cached Tesouro data.
- * Replaces the local in-memory lock with a distributed Next.js cache.
+ * Retrieves and assembles cached Tesouro data from local static files.
  */
 export async function getTesouroData(): Promise<TesouroCache> {
-  const fetchDate = new Date().toISOString()
+  const localMap = loadAllLocalStaticMaps()
+  const metadata = loadLocalMetadata()
 
-  // LOCAL STATIC MAP BYPASS: If enabled, load directly from the local project file
-  if (USE_LOCAL_STATIC_MAP) {
-    const localMap = loadLocalStaticMap()
-
-    if (!localMap) {
-      return {
-        data: [],
-        map: new Map<string, TesouroTitulo[]>(),
-        fetchedAt: fetchDate,
-        latestDataBase: null,
-        expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
-      }
-    }
-
-    // Flatten map entries back into the data array if needed, or extract latest date
-    const allData: TesouroTitulo[] = []
-    for (const items of localMap.values()) {
-      allData.push(...items)
-    }
-
-    const latestDataBase = getLatestDataBase(allData)
-
-    console.log("[TesouroData] getTesouroData - Serving from local static map file...")
-    return {
-      data: allData,
-      map: localMap,
-      fetchedAt: fetchDate,
-      latestDataBase,
-      expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
-    }
-  }
-
-  /**
-   * 1. Get total number of chunks from the distributed cache.
-   * This serves as the global coalescing point across serverless instances.
-   */
-  const totalChunks = await getCachedTotalChunks()
-
-  /**
-   * If the dataset is empty, return an empty cache payload without parsing an invalid CSV string (edge case).
-   */
-  if (totalChunks === 0) {
-    console.log("[TesouroData] Dataset is empty, returning empty payload...")
-
+  if (!localMap) {
     return {
       data: [],
       map: new Map<string, TesouroTitulo[]>(),
-      fetchedAt: fetchDate,
-      latestDataBase: null,
+      lastUpdatedAt: metadata.lastUpdatedAt,
+      latestDataBase: metadata.latestDataBase,
+      dataSource: metadata.dataSource,
       expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
     }
   }
 
-  /**
-   * 2. Fetch all chunks in parallel from the cache layers.
-   */
-  const chunkPromises: Promise<string>[] = []
-
-  for (let i = 0; i < totalChunks; i++) {
-    chunkPromises.push(getCachedChunkByIndex(i))
+  // Flatten map entries back into the data array if needed, or extract latest date
+  const allData: TesouroTitulo[] = []
+  for (const items of localMap.values()) {
+    allData.push(...items)
   }
 
-  const resolvedChunks = await Promise.all(chunkPromises)
-
-  /**
-   * 3. Reassemble the full CSV string in memory and parse it using the existing parser.
-   */
-  console.log("[TesouroData] Reassembling the full CSV...")
-  const { data: parsed, map } = parseAndMapChunks(resolvedChunks)
-  const latestDataBase = getLatestDataBase(parsed)
-  const fetchedAt = new Date().toISOString()
-
-  console.log("[TesouroData] getTesouroData - Returning data...")
+  console.log("[TesouroData] getTesouroData - Serving from local static map file...")
   return {
-    data: parsed,
-    map,
-    fetchedAt,
-    latestDataBase,
+    data: allData,
+    map: localMap,
+    lastUpdatedAt: metadata.lastUpdatedAt,
+    latestDataBase: metadata.latestDataBase,
+    dataSource: metadata.dataSource,
     expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000,
   }
 }
@@ -447,10 +165,7 @@ function filterTituloHistory(
 }
 
 /**
- * Finds historical entries for a Tesouro title.
- * Applies a lazy reading strategy (checking only chunk 0) strictly when 
- * the caller requests only the single most recent record (limit === 1),
- * avoiding unnecessary full dataset parsing. Otherwise, falls back to full assembly.
+ * Finds historical entries for a Tesouro title using local partitioned static files.
  * 
  * Supports optional filtering:
  *   - from: filters entries with dataBase >= from (inclusive)
@@ -464,7 +179,10 @@ function filterTituloHistory(
  *
  * Returns:
  *   - Filtered list of entries
- *   - fetchedAt timestamp (when data was retrieved)
+ *   - lastUpdatedAt timestamp (when map data was generated)
+ *   - latestDataBase date of the latest record on the dataset
+ *   - dataSource "live" if the data was generated from the retrieved
+ *     CSV from the official source or 'local" if it was generated from a local file
  *   - total number of items before filters/limit
  *
  * Notes:
@@ -481,67 +199,29 @@ export async function findTesouroTitulo(
   }
 ): Promise<TesouroTituloHistorico | null> {
   const targetKey = normalizeTituloKey(tipo, vencimentoISO)
-  let list: TesouroTitulo[] | undefined = undefined
-  let fetchedAt = new Date().toISOString()
-  let latestDataBase: string | null = null
+  const maturityYear = vencimentoISO.slice(0, 4)
 
-  // LOCAL STATIC MAP FLOW: Directly query the local static map file if enabled
-  if (USE_LOCAL_STATIC_MAP) {
-    const localMap = loadLocalStaticMap()
-    if (!localMap || !localMap.has(targetKey)) {
-      return null
-    }
-    list = localMap.get(targetKey)
+  const localMap = loadLocalYearStaticMap(maturityYear)
+  const metadata = loadLocalMetadata()
 
-    // Compute the global latest database date from all map entries
-    const allItems: TesouroTitulo[] = []
-    for (const items of localMap.values()) {
-      allItems.push(...items)
-    }
-    latestDataBase = getLatestDataBase(allItems)
-  } else {
-    // LAZY READING CONDITION: Safe to use only when limit is explicitly 1 (fetching only the latest record)
-    const isLazyEligible = options?.limit === 1 && !options?.from && !options?.to
-  
-    if (isLazyEligible) {
-      console.log("[TesouroData] Lazy reading eligible, reading chunk 0...")
-      const totalChunks = await getCachedTotalChunks()
-      if (totalChunks > 0) {
-        // Fetch only the first chunk where recent records reside
-        const chunk0Content = await getCachedChunkByIndex(0)
-        const { map: chunk0Map } = parseAndMapChunks([chunk0Content])
-  
-        if (chunk0Map.has(targetKey)) {
-          list = chunk0Map.get(targetKey)
-        }
-      }
-    }
-  
-    // FULL FALLBACK: If lazy search wasn't eligible, didn't match, or if a full history/range is requested
-    if (!list || list.length === 0) {
-      const fullData = await getTesouroData()
-      fetchedAt = fullData.fetchedAt
-      latestDataBase = fullData.latestDataBase
-      list = fullData.map.get(targetKey)
-    } else {
-      // If lazy reading matched, we still need the global latestDataBase from full data or chunk 0
-      const fullData = await getTesouroData()
-      latestDataBase = fullData.latestDataBase
-    }
+  // If the year file does not exist or the title key is not present, return null immediately (no fallback)
+  if (!localMap || !localMap.has(targetKey)) {
+    return null
   }
 
+  const list = localMap.get(targetKey)
   if (!list || list.length === 0) {
     return null
   }
 
-  console.log("[TesouroData] Applying filters to data...")
   const filtered = filterTituloHistory(list, options)
 
   console.log("[TesouroData] findTesouroTitulo - Returning data...")
   return {
     items: filtered,
-    fetchedAt,
-    latestDataBase: latestDataBase || fetchedAt,
+    lastUpdatedAt: metadata.lastUpdatedAt,
+    latestDataBase: metadata.latestDataBase,
+    dataSource: metadata.dataSource,
     total: list.length,
   }
 }

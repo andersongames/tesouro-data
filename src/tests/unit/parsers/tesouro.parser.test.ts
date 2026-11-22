@@ -15,26 +15,6 @@ const csvPath = resolve(
 const sampleCSV = readFileSync(csvPath, "utf-8")
 
 describe("tesouro.parser", () => {
-  describe("chunkCSV", () => {
-    it("should split the CSV into cache-safe chunks using the pure chunkCSV function", () => {
-      const header = "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha"
-      const rows = Array.from({ length: 40_000 }, () => {
-        const dataBase = "2026-03-31"
-        const vencimento = "2028-03-01"
-
-        return ["Tesouro Selic", vencimento, dataBase, "5,00", "5,10", "100,00", "101,00", "99,50"].join(";")
-      })
-
-      const fullMockCSV = [header, ...rows].join("\n")
-
-      // Test the pure chunkCSV function directly
-      const chunks = chunkCSV(fullMockCSV)
-
-      expect(chunks.length).toBeGreaterThan(1)
-      expect(chunks.every((chunk) => Buffer.byteLength(chunk, "utf8") < 2_000_000)).toBe(true)
-    })
-  })
-
   describe("parseTesouroCSV", () => {
     it("should parse CSV into structured objects", () => {
       const result = parseTesouroCSV(sampleCSV)
@@ -167,28 +147,37 @@ describe("tesouro.parser", () => {
     })
   })
 
-  describe("parseAndMapChunks", () => {
-    it("should join multiple chunks, parse them, and return both data array and map", () => {
-      const chunk1 = "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha\nTesouro Selic;01/03/2028;31/03/2026;5,00;5,10;100,00;101,00;99,50"
-      const chunk2 = "Tesouro IPCA+;15/08/2032;31/03/2026;6,00;6,10;1000,00;1010,00;995,00"
+  describe("Map Serialization / Deserialization", () => {
+    it("should serialize a Map to JSON entries array and deserialize it back without data loss", () => {
+      const mockData = [
+        {
+          tipo: "Tesouro Selic",
+          vencimento: "2028-03-01",
+          dataBase: "2026-03-31",
+          taxaCompra: 0.01,
+          taxaVenda: 0.02,
+          puCompra: 18707.93,
+          puVenda: 18694.15,
+          puBase: 18694.15,
+        },
+      ]
 
-      const result = parseAndMapChunks([chunk1, chunk2])
+      const originalMap = buildTituloMap(mockData)
 
-      // Verify data parsing
-      expect(result.data.length).toBe(2)
-      expect(result.data[0].tipo).toBe("Tesouro Selic")
-      expect(result.data[1].tipo).toBe("Tesouro IPCA+")
+      // Serialize Map to entries array and convert to JSON string (simulating file write)
+      const entriesArray = Array.from(originalMap.entries())
+      const jsonString = JSON.stringify(entriesArray)
 
-      // Verify map creation
-      expect(result.map).toBeInstanceOf(Map)
-      expect(result.map.size).toBe(2)
-    })
+      // Deserialize JSON string back to entries and reconstruct the Map (simulating file read)
+      const parsedEntries = JSON.parse(jsonString) as [string, unknown][]
+      const reconstructedMap = new Map(parsedEntries)
 
-    it("should handle an empty array of chunks gracefully", () => {
-      const result = parseAndMapChunks([])
+      expect(reconstructedMap.size).toBe(originalMap.size)
 
-      expect(result.data).toEqual([])
-      expect(result.map.size).toBe(0)
+      for (const [key, value] of originalMap.entries()) {
+        expect(reconstructedMap.has(key)).toBe(true)
+        expect(reconstructedMap.get(key)).toEqual(value)
+      }
     })
   })
 })

@@ -1,21 +1,60 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { readFileSync } from "fs"
-import { resolve } from "path"
-
 import { GET } from "@/app/api/titulo/route"
-import { mockFetch } from "../mocks/fetch.mock"
+import { createDatasetMock } from "../mocks/dataset.mock"
 
 /**
- * Load CSV fixture (real data → full pipeline)
+ * Initialize and apply the dataset mock based on the CSV fixture.
  */
-const csvPath = resolve("src/tests/fixtures/tesouro.sample.csv")
-const sampleCSV = readFileSync(csvPath, "utf-8")
+const setupMockFileSystem = createDatasetMock()
 
 describe("/api/titulo", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * -------------------------------
+   * METADATA & GRACEFUL DEGRADATION TESTS
+   * -------------------------------
+   */
+
+  it("should include correct metadata fields in the response", async () => {
+    setupMockFileSystem(true)
+
+    const req = new Request(
+      "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01"
+    )
+
+    const res = await GET(req as any)
+
+    expect(res.status).toBe(200)
+
+    const json = await res.json()
+
+    // Validate that metadata fields are present and correctly structured from metadata.json
+    expect(json).toHaveProperty("lastUpdatedAt")
+    expect(json).toHaveProperty("latestDataBase")
+    expect(json).toHaveProperty("dataSource")
+
+    expect(typeof json.lastUpdatedAt).toBe("string")
+    expect(json.latestDataBase).toBe("2026-03-31")
+    expect(json.dataSource).toBe("local")
+  })
+
+  it("should handle graceful degradation when metadata file is missing or corrupted", async () => {
+    setupMockFileSystem(false)
+
+    const req = new Request(
+      "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01"
+    )
+
+    const res = await GET(req as any)
+
+    // Should return 404 gracefully without crashing when dataset files are absent
+    expect(res.status).toBe(404)
   })
 
   /**
@@ -82,7 +121,7 @@ describe("/api/titulo", () => {
    * -------------------------------
    */
   it("should return 404 when title not found", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(false)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=TituloInexistente&vencimento=2099-01-01"
@@ -103,7 +142,7 @@ describe("/api/titulo", () => {
    * -------------------------------
    */
   it("should return title history successfully (ISO date)", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01"
@@ -125,7 +164,7 @@ describe("/api/titulo", () => {
    * -------------------------------
    */
   it("should accept BR date format (DD-MM-YYYY)", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=01-03-2028"
@@ -142,7 +181,7 @@ describe("/api/titulo", () => {
   })
 
   it("should return same result for ISO and BR formats", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const isoReq = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01"
@@ -175,7 +214,7 @@ describe("/api/titulo", () => {
    */
 
   it("should apply from filter (ISO)", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01&from=2026-03-31"
@@ -193,7 +232,7 @@ describe("/api/titulo", () => {
   })
 
   it("should apply from filter (BR format)", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01&from=31-03-2026"
@@ -211,7 +250,7 @@ describe("/api/titulo", () => {
   })
 
   it("should apply to filter (BR format)", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01&to=31-03-2026"
@@ -229,7 +268,7 @@ describe("/api/titulo", () => {
   })
 
   it("should apply limit correctly", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const req = new Request(
       "http://localhost/api/titulo?tipo=Tesouro Selic&vencimento=2028-03-01&limit=1"

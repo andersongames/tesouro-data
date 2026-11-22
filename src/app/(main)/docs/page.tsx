@@ -283,7 +283,7 @@ console.log({ titulo, taxa });`}
     }
   ],
   "total": 120,
-  "fetchedAt": "2026-04-10T10:00:00.000Z"
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z"
 }`}
         </pre>
 
@@ -367,7 +367,7 @@ print(res.json())`}
     }
   ],
   "total": 350,
-  "fetchedAt": "2026-04-10T10:00:00.000Z",
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
   "grouped": false
 }`}
         </pre>
@@ -406,7 +406,7 @@ print(res.json())`}
     }
   ],
   "total": 25,
-  "fetchedAt": "2026-04-10T10:00:00.000Z",
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
   "grouped": true
 }`}
         </pre>
