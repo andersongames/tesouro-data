@@ -12,6 +12,10 @@ interface GenerationOptions {
 
 /**
  * Extracts the most recent "dataBase" date from parsed data entries.
+ * 
+ * Assumes:
+ * - dataBase is in ISO format (YYYY-MM-DD)
+ * - string comparison works for ordering
  */
 export function getLatestDataBase(data: TesouroTitulo[]): string | null {
   if (!data.length) return null

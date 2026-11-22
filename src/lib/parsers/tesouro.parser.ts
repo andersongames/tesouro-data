@@ -1,29 +1,6 @@
 import { TesouroCSVRow, TesouroTitulo } from "../types/tesouro.types"
 import { normalizeTituloKey } from "../utils/tesouro-key"
 
-// Maximum lines per chunk to keep each cached payload safely under Next.js' ~2MB limit.
-const MAX_LINES_PER_CHUNK = 19_173
-
-/**
- * Pure function that splits a raw CSV string into an array of text chunks.
- * Keeps each chunk safely under the ~2MB cache size limit.
- */
-export function chunkCSV(csv: string, maxLinesPerChunk: number = MAX_LINES_PER_CHUNK): string[] {
-  const lines = csv.split(/\r?\n/)
-  const chunks: string[] = []
-
-  for (let i = 0; i < lines.length; i += maxLinesPerChunk) {
-    const chunkLines = lines.slice(i, i + maxLinesPerChunk)
-    const chunk = chunkLines.join("\n")
-
-    if (chunk.length > 0) {
-      chunks.push(chunk)
-    }
-  }
-
-  return chunks
-}
-
 /**
  * Converts a Brazilian formatted number (e.g. "13,66") into a float (13.66)
  */
@@ -137,19 +114,4 @@ export function buildTituloMap(
   }
 
   return map
-}
-
-/**
- * Pure function that joins raw chunk strings, parses the CSV content,
- * and builds the corresponding title mapping dictionary.
- */
-export function parseAndMapChunks(chunks: string[]): { 
-  data: TesouroTitulo[]
-  map: Map<string, TesouroTitulo[]> 
-} {
-  const fullCsvString = chunks.join("\n")
-  const data = parseTesouroCSV(fullCsvString)
-  const map = buildTituloMap(data)
-  
-  return { data, map }
 }
