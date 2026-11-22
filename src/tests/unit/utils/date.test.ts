@@ -12,17 +12,6 @@ import {
  * =========================
  */
 describe("formatDateBR", () => {
-
-  // TESTS  TO ADD:
-
-  /**
-   * Teste de Extração de Ano para Particionamento:
-   * Se houver um utilitário para extrair o ano de vencimento
-   * (ex: extrair 2028 a partir de 2028-03-01 ou 01-03-2028),
-   * vale a pena testá-lo para garantir que os arquivos particionados
-   * (tesouro-YYYY.json) sejam salvos nas pastas corretas.
-   */
-
   it("should convert ISO date to BR format", () => {
     const result = formatDateBR("2026-03-30")
     expect(result).toBe("30/03/2026")

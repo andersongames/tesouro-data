@@ -13,7 +13,7 @@ interface GenerationOptions {
 /**
  * Extracts the most recent "dataBase" date from parsed data entries.
  */
-function getLatestDataBase(data: TesouroTitulo[]): string | null {
+export function getLatestDataBase(data: TesouroTitulo[]): string | null {
   if (!data.length) return null
 
   let latest = data[0].dataBase
@@ -51,7 +51,7 @@ async function fetchCsvContent(source: "local" | "live"): Promise<string> {
 /**
  * Partitions a title map into separate maps grouped by the maturity year.
  */
-function partitionMapByMaturityYear(tituloMap: Map<string, TesouroTitulo[]>): Map<string, Map<string, TesouroTitulo[]>> {
+export function partitionMapByMaturityYear(tituloMap: Map<string, TesouroTitulo[]>): Map<string, Map<string, TesouroTitulo[]>> {
   const yearMaps = new Map<string, Map<string, TesouroTitulo[]>>()
 
   for (const [key, titles] of tituloMap.entries()) {

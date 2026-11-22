@@ -15,26 +15,6 @@ const csvPath = resolve(
 const sampleCSV = readFileSync(csvPath, "utf-8")
 
 describe("tesouro.parser", () => {
-
-  // TESTS TO ADD:
-
-  /** Teste de Particionamento por Ano:
-   * Validar se uma função de agrupamento ou salvamento
-   * por ano separa corretamente os registros com base no
-   * ano de vencimento extraído (vencimento).
-   */
-
-  /** Teste de Serialização/Deserialização do Map para JSON:
-   * Garantir que a conversão de um Map de títulos para um array
-   * de entradas ([key, value][]) e vice-versa ocorre sem perda de dados.
-   */
-
-  /** Teste de Geração de Metadados:
-   * Validar se o objeto de metadados (metadata.json) calcula
-   * corretamente a data mais recente (latestDataBase) a partir
-   * de um conjunto de dados de entrada.
-   */
-
   describe("parseTesouroCSV", () => {
     it("should parse CSV into structured objects", () => {
       const result = parseTesouroCSV(sampleCSV)
