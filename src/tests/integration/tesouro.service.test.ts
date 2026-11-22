@@ -1,23 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { readFileSync } from "fs"
-import { resolve } from "path"
-
-import { findTesouroTitulo } from "@/lib/services/tesouro.service"
-
-import { mockFetch } from "../mocks/fetch.mock"
-import { TESOURO_CSV_URL } from "@/lib/constants"
-
+import { findTesouroTitulo, getTesouroData } from "@/lib/services/tesouro.service"
+import { createDatasetMock } from "../mocks/dataset.mock"
 
 /**
- * Load CSV fixture
+ * Initialize and apply the dataset mock based on the CSV fixture using spies.
  */
-const csvPath = resolve("src/tests/fixtures/tesouro.sample.csv")
-const sampleCSV = readFileSync(csvPath, "utf-8")
+const setupMockFileSystem = createDatasetMock()
 
 describe("tesouro.service (integration)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
+    vi.restoreAllMocks()
   })
 
   // TESTS TO ADD:
@@ -31,7 +25,7 @@ describe("tesouro.service (integration)", () => {
 
   /**
    * Teste de Leitura do metadata.json:
-   * Validar se as propriedades lastUpdatedAt e latestDataBase
+   * Validar se as propriedades lastUpdatedAt e latestDataBase e dataSource
    * são carregadas e retornadas corretamente a partir do arquivo
    * de metadados gerado pela automação.
    */
@@ -43,6 +37,8 @@ describe("tesouro.service (integration)", () => {
    * null ou valores seguros de fallback sem quebrar a aplicação).
    */
 
+  // TESTES SUGERIDOS
+
   /**
    * should load title history successfully from partitioned year dataset files
    * should return null immediately when a maturity year file or title key does not exist (no legacy fallback)
@@ -52,12 +48,45 @@ describe("tesouro.service (integration)", () => {
 
   /**
    * -------------------------------
+   * DATASET & METADATA LOADING TESTS
+   * -------------------------------
+   */
+  it("should load and merge all local static maps when getTesouroData() is called", async () => {
+    setupMockFileSystem(true)
+
+    const cache = await getTesouroData()
+
+    expect(cache).toBeDefined()
+    expect(cache.data.length).toBeGreaterThan(0)
+    expect(cache.map instanceof Map).toBe(true)
+    expect(cache.map.size).toBeGreaterThan(0)
+    
+    // Validate metadata integration
+    expect(typeof cache.lastUpdatedAt).toBe("string")
+    expect(cache.latestDataBase).toBe("2026-03-31")
+    expect(cache.dataSource).toBe("local")
+  })
+
+  it("should handle graceful degradation when dataset files or metadata are missing", async () => {
+    setupMockFileSystem(false)
+
+    const cache = await getTesouroData()
+
+    expect(cache.data).toEqual([])
+    expect(cache.map.size).toBe(0)
+
+    const result = await findTesouroTitulo("Tesouro Selic", "2028-03-01")
+    expect(result).toBeNull()
+  })
+
+  /**
+   * -------------------------------
    * findTesouroTitulo TESTS
    * -------------------------------
    */
 
-  it("should return full history for a title", async () => {
-    mockFetch(sampleCSV)
+  it("should load title history successfully from partitioned year dataset files", async () => {
+    setupMockFileSystem(true)
 
     const result = await findTesouroTitulo(
       "Tesouro Selic",
@@ -66,10 +95,23 @@ describe("tesouro.service (integration)", () => {
 
     expect(result).not.toBeNull()
     expect(result!.items.length).toBeGreaterThan(0)
+    expect(result!.latestDataBase).toBe("2026-03-31")
+  })
+
+  it("should return null immediately when a maturity year file or title key does not exist", async () => {
+    setupMockFileSystem(true)
+
+    // Query non-existent maturity year partition
+    const result = await findTesouroTitulo(
+      "Tesouro Selic",
+      "2099-01-01"
+    )
+
+    expect(result).toBeNull()
   })
 
   it("should apply from filter", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const result = await findTesouroTitulo(
       "Tesouro Selic",
@@ -89,7 +131,7 @@ describe("tesouro.service (integration)", () => {
   })
 
   it("should apply to filter", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const result = await findTesouroTitulo(
       "Tesouro Selic",
@@ -109,7 +151,7 @@ describe("tesouro.service (integration)", () => {
   })
 
   it("should apply limit correctly", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const result = await findTesouroTitulo(
       "Tesouro Selic",
@@ -124,11 +166,11 @@ describe("tesouro.service (integration)", () => {
   })
 
   it("should return null when not found", async () => {
-    mockFetch(sampleCSV)
+    setupMockFileSystem(true)
 
     const result = await findTesouroTitulo(
       "Titulo Inexistente",
-      "2099-01-01"
+      "2028-03-01"
     )
 
     expect(result).toBeNull()
