@@ -50,7 +50,7 @@ export default function DocsSidebar({ sections }: DocsSidebarProps) {
   }
 
   return (
-    <aside className="w-full md:w-64 shrink-0 md:sticky md:top-8 self-start">
+    <aside className="w-full md:w-64 shrink-0 md:sticky md:top-20 self-start">
       <nav
         aria-label="Índice da documentação"
         className="md:sticky md:top-8 bg-bg-secondary border border-border rounded-xl p-4 space-y-2"

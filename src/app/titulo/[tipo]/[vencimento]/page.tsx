@@ -193,7 +193,7 @@ export default async function TituloPage({
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-sm font-medium text-text-highlight hover:border-accent/50 transition-all shadow-sm"
             title="Mostrar histórico"
           >
-            <span>Ver histórico completo</span>
+            <span className="mt-0.5">Ver histórico completo</span>
             <span className="text-accent">→</span>
           </Link>
         </div>
