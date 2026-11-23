@@ -1,30 +1,32 @@
-import Image from "next/image"
 import Link from "next/link"
+import Image from "next/image"
 
 /**
- * Main navigation bar
- *
- * Shared across pages:
- * - /search
- * - /docs
+ * Navigation header component featuring logo, title, and polished nav links.
  */
 export default function Navbar() {
   return (
-    <header className="w-full border-b border-border bg-bg-secondary">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <header className="w-full border-b border-border bg-bg-secondary/90 backdrop-blur-md sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo / Title */}
-        <div className="flex items-center gap-2">
-          <Image src='/logo-small.png' alt="logo" width={32} height={32} />
-          <span className="text-text-highlight font-semibold">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 group focus:outline-none"
+          title="Home"
+        >
+          <div className="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center transition group-hover:border-accent/50">
+            <Image src="/logo-small.png" alt="logo" width={24} height={24} />
+          </div>
+          <span className="text-text-highlight font-bold tracking-tight text-lg">
             Tesouro Data
           </span>
-        </div>
+        </Link>
 
         {/* Navigation links */}
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="flex items-center gap-1.5 text-sm font-medium">
           <Link
-            href="/"
-            className="text-text-secondary hover:text-text-highlight transition"
+            href="/search"
+            className="px-3.5 py-2 rounded-lg text-text-primary hover:text-text-highlight hover:bg-border/50 transition-colors"
             title="Buscar título"
           >
             Buscar
@@ -32,10 +34,10 @@ export default function Navbar() {
 
           <Link
             href="/docs"
-            className="text-text-secondary hover:text-text-highlight transition"
+            className="px-3.5 py-2 rounded-lg text-text-primary hover:text-text-highlight hover:bg-border/50 transition-colors"
             title="Documentação"
           >
-            Docs
+            Documentação
           </Link>
         </nav>
       </div>

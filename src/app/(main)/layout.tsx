@@ -3,6 +3,7 @@ import Footer from "@/app/components/layout/Footer"
 
 /**
  * Layout used by:
+ * - /
  * - /search
  * - /docs
  *

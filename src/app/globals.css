@@ -2,31 +2,32 @@
 
 :root {
   /* -----------------------------
-   * BACKGROUND
-   * ----------------------------- */
-  --bg-primary: #0f172a;
-  --bg-secondary: #111827;
+   - BACKGROUND
+   ----------------------------- */
+  --bg-primary: #0b1120;
+  --bg-secondary: #131c2e;
 
   /* -----------------------------
-   * TEXT
-   * ----------------------------- */
-  --text-primary: #e5e7eb;
-  --text-secondary: #9ca3af;
-  --text-highlight: #f9fafb;
+   - TEXT
+   ----------------------------- */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-highlight: #ffffff;
 
   /* -----------------------------
-   * ACCENT
-   * ----------------------------- */
-  --accent: #3b82f6;
+   - ACCENT
+   ----------------------------- */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
 
   /* -----------------------------
-   * BORDER
-   * ----------------------------- */
-  --border: #1f2937;
+   - BORDER
+   ----------------------------- */
+  --border: #1e293b;
 
   /* -----------------------------
-   * STATES
-   * ----------------------------- */
+   - STATES
+   ----------------------------- */
   --success: #22c55e;
   --warning: #f59e0b;
   --error: #ef4444;
@@ -35,7 +36,7 @@
 /**
  * Tailwind theme mapping
  * Allows using classes like:
- * bg-background, text-foreground, etc.
+ * bg-bg-primary, text-text-highlight, etc.
  */
 @theme inline {
   --color-bg-primary: var(--bg-primary);
@@ -46,6 +47,7 @@
   --color-text-highlight: var(--text-highlight);
 
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-border: var(--border);
 
   --color-success: var(--success);

@@ -1,7 +1,10 @@
 import { getBaseUrl } from "@/lib/server/url"
-import { getTesouroData } from "@/lib/services/tesouro.service"
 import { formatDateBR } from "@/lib/utils/date"
+import DocsSidebar, { DocSection } from "@/app/components/docs/DocsSidebar"
+import CodeTabs from "@/app/components/docs/CodeTabs"
 import { Metadata } from "next"
+import fs from "fs"
+import path from "path"
 
 export const metadata: Metadata = {
   title: "Documentação",
@@ -9,266 +12,284 @@ export const metadata: Metadata = {
     "Aprenda a consultar e integrar dados do Tesouro Direto via URL, scraping ou API.",
 }
 
+interface DatasetMetadata {
+  lastUpdatedAt: string
+  latestDataBase: string | null
+  dataSource: string
+}
+
 /**
- * Documentation page
- *
- * Explains:
- * - How to use the app
- * - How to consume data via URL
- * - How to scrape the result page
- * - Scraping examples
- * - API documentation
- *
- * This page is static and optimized for readability.
+ * Reads local dataset metadata directly from metadata.json without loading full datasets.
+ */
+function readDatasetMetadata(): DatasetMetadata | null {
+  const metadataPath = path.join(process.cwd(), "src/lib/data/datasets/metadata.json")
+
+  if (!fs.existsSync(metadataPath)) {
+    return null
+  }
+
+  try {
+    const content = fs.readFileSync(metadataPath, "utf-8")
+    return JSON.parse(content) as DatasetMetadata
+  } catch {
+    return null
+  }
+}
+
+const DOC_SECTIONS: DocSection[] = [
+  { id: "visao-geral", title: "Visão Geral" },
+  { id: "fonte-dados", title: "Fonte dos Dados" },
+  { id: "busca-direta", title: "Busca e Acesso via URL" },
+  { id: "scraping", title: "Web Scraping" },
+  { id: "api-titulo", title: "API: /api/titulo" },
+  { id: "api-titulos", title: "API: /api/titulos" },
+  { id: "observacoes", title: "Observações Gerais" },
+]
+
+/**
+ * Documentation page featuring a sticky table of contents sidebar,
+ * direct metadata reading, improved typography, and tabbed code examples.
  */
 export default async function DocsPage() {
   const baseUrl = await getBaseUrl()
-  const { latestDataBase } = await getTesouroData()
+  const metadataInfo = readDatasetMetadata()
 
   return (
-    <main className="max-w-5xl w-full mx-auto px-4 py-10 space-y-10">
-      {/* Title */}
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-text-highlight">
+    <main className="max-w-6xl w-full mx-auto px-4 py-10">
+      {/* Page Header */}
+      <header className="space-y-3 pb-8 border-b border-border">
+        <span className="inline-block px-3 py-1 text-xs font-medium text-accent bg-blue-500/10 rounded-full border border-accent/20">
+          Guia de Integração
+        </span>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-text-highlight">
           Documentação
         </h1>
-        <p className="text-text-secondary">
-          Guia de uso e integração com os dados do Tesouro Direto.
+        <p className="text-base sm:text-lg text-text-secondary max-w-2xl">
+          Aprenda a consultar, extrair e integrar taxas e preços dos títulos do Tesouro Direto via URL, scraping ou API REST.
         </p>
       </header>
 
-      {/* Section: Overview */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Visão geral
-        </h2>
+      {/* Main Content Layout: Sticky Sidebar + Documentation Body */}
+      <div className="flex flex-col md:flex-row gap-8 pt-8 items-start">
+        <DocsSidebar sections={DOC_SECTIONS} />
 
-        <p className="text-text-secondary">
-          Esta aplicação permite consultar dados de títulos do Tesouro Direto
-          de forma simples, com foco em performance e facilidade de integração.
-        </p>
-      </section>
+        <div className="flex-1 min-w-0 space-y-12">
+          {/* Section 1: Overview */}
+          <section id="visao-geral" className="scroll-mt-8 space-y-4">
+            <h2 className="text-2xl font-semibold text-text-highlight">
+              Visão Geral
+            </h2>
+            <p className="text-base text-text-primary leading-relaxed">
+              Esta aplicação permite consultar dados históricos e atuais de títulos do Tesouro Direto de forma simples, rápida e estruturada, com foco em baixa latência e facilidade de integração.
+            </p>
+          </section>
 
-      {/* ========================= */}
-      {/* DATA SOURCE */}
-      {/* ========================= */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Fonte dos dados
-        </h2>
+          <hr className="border-border" />
 
-        <p className="text-text-secondary">
-          Os dados utilizados nesta aplicação são fornecidos oficialmente pelo Tesouro Nacional,
-          através do portal Tesouro Transparente.
-        </p>
+          {/* Section 2: Data Source */}
+          <section id="fonte-dados" className="scroll-mt-8 space-y-4">
+            <h2 className="text-2xl font-semibold text-text-highlight">
+              Fonte dos Dados
+            </h2>
+            <p className="text-base text-text-primary leading-relaxed">
+              Os dados são fornecidos oficialmente pelo Tesouro Nacional através do portal <strong>Tesouro Transparente</strong>, contendo informações diárias sobre taxas de compra/venda e preços unitários (PU).
+            </p>
 
-        <p className="text-text-secondary">
-          O dataset contém informações diárias sobre taxas e preços dos títulos do Tesouro Direto.
-        </p>
+            <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-sm font-medium text-text-highlight">
+                  Dataset Oficial (CKAN)
+                </span>
+                <a
+                  href="https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-accent hover:underline font-medium"
+                >
+                  Acessar portal oficial →
+                </a>
+              </div>
 
-        <a
-          href="https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-accent hover:text-text-highlight transition text-sm"
-        >
-          Acessar página oficial do dataset →
-        </a>
+              <code className="block bg-bg-primary border border-border rounded-lg p-3 text-xs text-text-secondary break-all">
+                https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1
+              </code>
 
-        <div className="bg-bg-secondary border border-border rounded-lg p-3 text-xs break-all">
-          https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1
-        </div>
+              {metadataInfo?.latestDataBase && (
+                <div className="pt-2 border-t border-border flex flex-wrap gap-4 text-sm text-text-secondary">
+                  <span>
+                    Última data base disponível:{" "}
+                    <strong className="text-text-highlight">
+                      {formatDateBR(metadataInfo.latestDataBase)}
+                    </strong>
+                  </span>
+                  <span>
+                    Fonte ativa:{" "}
+                    <strong className="text-text-highlight uppercase">
+                      {metadataInfo.dataSource}
+                    </strong>
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
 
-        <p className="text-text-secondary text-sm">
-          Os dados são atualizados diariamente e processados pela aplicação para otimizar
-          consultas e integração via API.
-        </p>
+          <hr className="border-border" />
 
-        {latestDataBase && (
-          <p className="text-text-secondary text-sm">
-            Última atualização disponível no dataset:{" "}
-            <strong className="text-text-highlight">
-              {formatDateBR(latestDataBase)}
-            </strong>
-          </p>
-        )}
-      </section>
+          {/* Section 3: Search & Direct URL */}
+          <section id="busca-direta" className="scroll-mt-8 space-y-4">
+            <h2 className="text-2xl font-semibold text-text-highlight">
+              Busca e Acesso via URL
+            </h2>
+            <p className="text-base text-text-primary leading-relaxed">
+              Você pode utilizar a interface visual na página <code className="text-accent">/search</code> ou acessar diretamente qualquer título através da estrutura de URL amigável:
+            </p>
 
-      {/* Section: Search */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Como usar a busca
-        </h2>
+            <code className="block bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
+              /titulo/{`{tipo}`}/{`{vencimento}`}
+            </code>
 
-        <p className="text-text-secondary">
-          Acesse a página de busca, selecione o tipo de título e o vencimento,
-          e clique em <strong>Buscar</strong>.
-        </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-text-highlight">
+                  Formatos de Vencimento Aceitos
+                </h3>
+                <ul className="list-disc pl-5 text-sm text-text-secondary space-y-1">
+                  <li>Formato ISO: <code className="text-text-primary">YYYY-MM-DD</code></li>
+                  <li>Formato BR: <code className="text-text-primary">DD-MM-YYYY</code></li>
+                </ul>
+                <p className="text-xs text-text-secondary pt-1">
+                  Formatos com barra (<code className="text-error">DD/MM/YYYY</code>) não são suportados.
+                </p>
+              </div>
 
-        <p className="text-text-secondary">
-          O resultado será aberto em uma nova aba.
-        </p>
-      </section>
+              <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-text-highlight">
+                  Histórico Completo na Página
+                </h3>
+                <p className="text-sm text-text-secondary">
+                  Adicione o parâmetro <code className="text-text-primary">?history=true</code> para exibir a tabela completa de evolução do título:
+                </p>
+                <code className="block bg-bg-primary border border-border rounded p-2 text-xs text-text-primary break-all">
+                  /titulo/Tesouro%20Prefixado/2029-01-01?history=true
+                </code>
+              </div>
+            </div>
+          </section>
 
-      {/* Section: URL */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Acesso direto via URL
-        </h2>
+          <hr className="border-border" />
 
-        <p className="text-text-secondary">
-          Você pode acessar os dados diretamente via URL:
-        </p>
+          {/* Section 4: Web Scraping */}
+          <section id="scraping" className="scroll-mt-8 space-y-4">
+            <h2 className="text-2xl font-semibold text-text-highlight">
+              Web Scraping
+            </h2>
+            <p className="text-base text-text-primary leading-relaxed">
+              A página de resultados renderiza elementos HTML com identificadores (<code className="text-accent">id</code>) fixos e semânticos, permitindo extração direta sem depender de classes CSS.
+            </p>
 
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /titulo/{`{tipo}`}/{`{vencimento}`}
-        </code>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {[
+                { id: "#titulo", desc: "Nome do título" },
+                { id: "#vencimento", desc: "Data de vencimento" },
+                { id: "#combo", desc: "Combinação de nome e vencimento" },
+                { id: "#data-base", desc: "Data de referência" },
+                { id: "#taxa-compra", desc: "Taxa de compra (%)" },
+                { id: "#taxa-venda", desc: "Taxa de venda (%)" },
+                { id: "#pu-compra", desc: "PU de compra (R$)" },
+                { id: "#pu-venda", desc: "PU de venda (R$)" },
+                { id: "#pu-base", desc: "PU base (R$)" },
+                { id: "#ultima-atualizacao", desc: "Data de atualização" },
+              ].map((selector) => (
+                <div
+                  key={selector.id}
+                  className="bg-bg-secondary border border-border rounded-lg p-3 flex flex-col justify-between"
+                >
+                  <code className="text-sm font-semibold text-accent">
+                    {selector.id}
+                  </code>
+                  <span className="text-xs text-text-secondary mt-1">
+                    {selector.desc}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-        <p className="text-text-secondary">
-          O parâmetro <strong>vencimento</strong> aceita dois formatos:
-        </p>
-
-        <ul className="list-disc pl-5 text-text-secondary text-sm space-y-1">
-          <li>ISO: <code>YYYY-MM-DD</code></li>
-          <li>BR: <code>DD-MM-YYYY</code></li>
-        </ul>
-
-        <p className="text-text-secondary">
-          Exemplos:
-        </p>
-
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /titulo/Tesouro%20Prefixado/2029-01-01
-        </code>
-
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /titulo/Tesouro%20Prefixado/01-01-2029
-        </code>
-
-        <p className="text-text-secondary text-sm">
-          Outros formatos (ex: <code>DD/MM/YYYY</code>) não são suportados.
-        </p>
-      </section>
-
-      {/* Section: History */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Histórico
-        </h2>
-
-        <p className="text-text-secondary">
-          Para obter o histórico completo do título, utilize o parâmetro:
-        </p>
-
-        <ul className="list-disc pl-5 text-text-secondary text-sm space-y-1">
-          <li><code>history=true</code></li>
-        </ul>
-
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /titulo/Tesouro%20Prefixado/01-01-2029?history=true
-        </code>
-      </section>
-
-      {/* Section: Scraping */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Scraping
-        </h2>
-
-        <p className="text-text-secondary">
-          A página de resultado foi otimizada com IDs estáveis para facilitar extração.
-        </p>
-
-        <p className="text-text-secondary">
-          Os dados possuem identificadores estáveis (IDs), permitindo extração direta.
-        </p>
-
-        <div className="bg-bg-secondary border border-border rounded-lg p-4 text-sm space-y-2">
-          <p><strong>#titulo</strong> → nome do título</p>
-          <p><strong>#vencimento</strong> → data de vencimento</p>
-          <p><strong>#data-base</strong> → data base</p>
-          <p><strong>#taxa-compra</strong></p>
-          <p><strong>#taxa-venda</strong></p>
-          <p><strong>#pu-compra</strong></p>
-          <p><strong>#pu-venda</strong></p>
-          <p><strong>#pu-base</strong></p>
-          <p><strong>#ultima-atualizacao</strong> → última atualização dos dados</p>
-        </div>
-
-                {/* JS Example */}
-        <div className="space-y-2">
-          <p className="text-text-secondary">Exemplo em JavaScript:</p>
-
-          <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`const res = await fetch("${baseUrl}/titulo/Tesouro%20Prefixado/2029-01-01");
+            <CodeTabs
+              tabs={[
+                {
+                  label: "JavaScript (Fetch + DOMParser)",
+                  language: "javascript",
+                  code: `const res = await fetch("${baseUrl}/titulo/Tesouro%20Prefixado/2029-01-01");
 const html = await res.text();
 
 const doc = new DOMParser().parseFromString(html, "text/html");
-
 const titulo = doc.querySelector("#titulo")?.textContent;
 const taxa = doc.querySelector("#taxa-compra")?.textContent;
 
-console.log({ titulo, taxa });`}
-          </pre>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-text-secondary">Exemplo no Google Sheets:</p>
-
-          <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`=IMPORTXML(
+console.log({ titulo, taxa });`,
+                },
+                {
+                  label: "Google Sheets (IMPORTXML)",
+                  language: "excel",
+                  code: `=IMPORTXML(
   "${baseUrl}/titulo/Tesouro%20Prefixado/2029-01-01",
   "//*[@id='taxa-compra']"
-)`}
-          </pre>
-        </div>
-      </section>
+)`,
+                },
+              ]}
+            />
+          </section>
 
-      {/* ========================= */}
-      {/* API /api/titulo */}
-      {/* ========================= */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-medium text-text-highlight">
-          API: /api/titulo
-        </h2>
+          <hr className="border-border" />
 
-        <p className="text-text-secondary">
-          Retorna dados de um título específico.
-        </p>
+          {/* Section 5: API /api/titulo */}
+          <section id="api-titulo" className="scroll-mt-8 space-y-5">
+            <div className="flex items-center gap-3">
+              <span className="px-2.5 py-1 text-xs font-bold bg-success/15 text-success rounded-md border border-success/30">
+                GET
+              </span>
+              <h2 className="text-2xl font-semibold text-text-highlight">
+                /api/titulo
+              </h2>
+            </div>
 
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /api/titulo?tipo=...&vencimento=YYYY-MM-DD
-        </code>
+            <p className="text-base text-text-primary leading-relaxed">
+              Retorna a série histórica de preços e taxas para um título específico, acompanhada dos metadados do dataset.
+            </p>
 
-        <p className="text-text-secondary">Parâmetros:</p>
-        <ul className="list-disc pl-5 text-text-secondary text-sm">
-          <li>tipo (string)</li>
-          <li>vencimento (YYYY-MM-DD ou DD-MM-YYYY)</li>
-          <li>from / to (opcional)</li>
-          <li>limit (opcional)</li>
-        </ul>
+            <code className="block bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
+              /api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01
+            </code>
 
-        <p className="text-text-secondary text-sm">
-          Os parâmetros <strong>vencimento</strong>, <strong>from</strong> e <strong>to</strong>, aceitam:
-          <br />• Formato ISO: <code>YYYY-MM-DD</code>
-          <br />• Formato BR com hífen: <code>DD-MM-YYYY</code>
-        </p>
+            <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-text-highlight">
+                Parâmetros de Query
+              </h3>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                <li>
+                  <code className="text-text-highlight font-semibold">tipo</code>{" "}
+                  <span className="text-error text-xs">(obrigatório)</span> — Nome do título (ex: <code>Tesouro Selic</code>).
+                </li>
+                <li>
+                  <code className="text-text-highlight font-semibold">vencimento</code>{" "}
+                  <span className="text-error text-xs">(obrigatório)</span> — Data de vencimento (<code>YYYY-MM-DD</code> ou <code>DD-MM-YYYY</code>).
+                </li>
+                <li>
+                  <code className="text-text-highlight font-semibold">from / to</code>{" "}
+                  <span className="text-xs">(opcional)</span> — Filtra o período da série histórica (mesmos formatos de data).
+                </li>
+                <li>
+                  <code className="text-text-highlight font-semibold">limit</code>{" "}
+                  <span className="text-xs">(opcional)</span> — Limita a quantidade de registros retornados (ex: <code>limit=1</code> para o mais recente).
+                </li>
+              </ul>
+            </div>
 
-        <p className="text-text-secondary">
-          Exemplos:
-        </p>
-
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01
-        </code>
-
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /api/titulo?tipo=Tesouro%20Prefixado&vencimento=01-01-2029
-        </code>
-
-        <p className="text-text-secondary">Resposta:</p>
-
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-text-highlight">
+                Exemplo de Resposta JSON
+              </h3>
+              <pre className="bg-bg-secondary border border-border rounded-xl p-4 text-xs sm:text-sm font-mono text-text-primary overflow-x-auto leading-relaxed">
 {`{
   "items": [
     {
@@ -283,67 +304,89 @@ console.log({ titulo, taxa });`}
     }
   ],
   "total": 120,
-  "lastUpdatedAt": "2026-04-10T10:00:00.000Z"
+  "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
+  "latestDataBase": "2026-04-10",
+  "dataSource": "live"
 }`}
-        </pre>
+              </pre>
+            </div>
 
-        <p className="text-text-secondary text-sm">
-          <strong>items:</strong> lista de registros históricos do título (ordenados do mais recente para o mais antigo)
-        </p>
-
-        {/* JS */}
-        <p className="text-text-secondary">Exemplo em JavaScript:</p>
-
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`const res = await fetch("/api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01");
-const data = await res.json();`}
-        </pre>
-
-        {/* Python */}
-        <p className="text-text-secondary">Exemplo em Python:</p>
-
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`import requests
+            <CodeTabs
+              tabs={[
+                {
+                  label: "JavaScript",
+                  language: "javascript",
+                  code: `const res = await fetch("${baseUrl}/api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01");
+const data = await res.json();
+console.log(data);`,
+                },
+                {
+                  label: "Python",
+                  language: "python",
+                  code: `import requests
 
 res = requests.get(
-  "${baseUrl}/api/titulo",
-  params={
-    "tipo": "Tesouro Prefixado",
-    "vencimento": "2029-01-01"
-  }
+    "${baseUrl}/api/titulo",
+    params={
+        "tipo": "Tesouro Prefixado",
+        "vencimento": "2029-01-01"
+    }
 )
 
-print(res.json())`}
-        </pre>
-      </section>
+print(res.json())`,
+                },
+                {
+                  label: "cURL",
+                  language: "bash",
+                  code: `curl -X GET "${baseUrl}/api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01"`,
+                },
+              ]}
+            />
+          </section>
 
-      {/* ========================= */}
-      {/* API /api/titulos */}
-      {/* ========================= */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-medium text-text-highlight">
-          API: /api/titulos
-        </h2>
+          <hr className="border-border" />
 
-        <p className="text-text-secondary">
-          Retorna todos os títulos com filtros.
-        </p>
+          {/* Section 6: API /api/titulos */}
+          <section id="api-titulos" className="scroll-mt-8 space-y-5">
+            <div className="flex items-center gap-3">
+              <span className="px-2.5 py-1 text-xs font-bold bg-success/15 text-success rounded-md border border-success/30">
+                GET
+              </span>
+              <h2 className="text-2xl font-semibold text-text-highlight">
+                /api/titulos
+              </h2>
+            </div>
 
-        <code className="block bg-bg-secondary border border-border rounded-lg p-3 text-sm">
-          /api/titulos?maturity=all|future|expired&grouped=true
-        </code>
+            <p className="text-base text-text-primary leading-relaxed">
+              Retorna a listagem completa de títulos disponíveis no dataset, suportando filtros por situação de vencimento e agrupamento por título.
+            </p>
 
-        <p className="text-text-secondary">Parâmetros:</p>
-        <ul className="list-disc pl-5 text-text-secondary text-sm">
-          <li>maturity: future | expired | all</li>
-          <li>grouped: boolean</li>
-        </ul>
+            <code className="block bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
+              /api/titulos?maturity=all|future|expired&grouped=true
+            </code>
 
-        {/* Response */}
-        <p className="text-text-secondary">Resposta padrão:</p>
+            <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-text-highlight">
+                Parâmetros de Query
+              </h3>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                <li>
+                  <code className="text-text-highlight font-semibold">maturity</code>{" "}
+                  <span className="text-xs">(opcional)</span> — Filtra títulos por vencimento: <code>future</code>, <code>expired</code> ou <code>all</code>.
+                </li>
+                <li>
+                  <code className="text-text-highlight font-semibold">grouped</code>{" "}
+                  <span className="text-xs">(opcional, boolean)</span> — Quando <code>true</code>, agrupa os registros históricos dentro de cada título único.
+                </li>
+              </ul>
+            </div>
 
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`{
+            <CodeTabs
+              tabs={[
+                {
+                  label: "Resposta Padrão (grouped=false)",
+                  language: "json",
+                  code: `{
   "items": [
     {
       "tipo": "Tesouro Prefixado",
@@ -354,33 +397,19 @@ print(res.json())`}
       "puCompra": 745.32,
       "puVenda": 742.10,
       "puBase": 743.50
-    },
-    {
-      "tipo": "Tesouro IPCA+",
-      "vencimento": "2035-05-15",
-      "dataBase": "2026-04-10",
-      "taxaCompra": 5.12,
-      "taxaVenda": 5.05,
-      "puCompra": 2890.10,
-      "puVenda": 2875.50,
-      "puBase": 2882.30
     }
   ],
   "total": 350,
   "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
+  "latestDataBase": "2026-04-10",
+  "dataSource": "live",
   "grouped": false
-}`}
-        </pre>
-
-        <p className="text-text-secondary">
-          Quando <strong>grouped=true</strong>, os dados vêm agrupados por título.
-        </p>
-
-        {/* Response grouped*/}
-        <p className="text-text-secondary">Resposta grouped=true:</p>
-
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`{
+}`,
+                },
+                {
+                  label: "Resposta Agrupada (grouped=true)",
+                  language: "json",
+                  code: `{
   "items": [
     {
       "tipo": "Tesouro Prefixado",
@@ -393,66 +422,60 @@ print(res.json())`}
           "puCompra": 745.32,
           "puVenda": 742.10,
           "puBase": 743.50
-        },
-        {
-          "dataBase": "2026-04-09",
-          "taxaCompra": 10.40,
-          "taxaVenda": 10.25,
-          "puCompra": 744.10,
-          "puVenda": 741.00,
-          "puBase": 742.50
         }
       ]
     }
   ],
   "total": 25,
   "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
+  "latestDataBase": "2026-04-10",
+  "dataSource": "live",
   "grouped": true
-}`}
-        </pre>
+}`,
+                },
+              ]}
+            />
 
-        <p className="text-text-secondary text-sm">
-          Quando <strong>grouped=true</strong>, cada item representa um título único
-          contendo sua lista de registros históricos.
-        </p>
-
-        {/* JS */}
-        <p className="text-text-secondary">Exemplo em JavaScript:</p>
-
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`const res = await fetch("/api/titulos?grouped=true");
-const data = await res.json();`}
-        </pre>
-
-        {/* Python */}
-        <p className="text-text-secondary">Exemplo em Python:</p>
-
-        <pre className="bg-bg-secondary border border-border rounded-lg p-3 text-xs overflow-auto">
-{`import requests
+            <CodeTabs
+              tabs={[
+                {
+                  label: "JavaScript",
+                  language: "javascript",
+                  code: `const res = await fetch("${baseUrl}/api/titulos?grouped=true");
+const data = await res.json();
+console.log(data);`,
+                },
+                {
+                  label: "Python",
+                  language: "python",
+                  code: `import requests
 
 res = requests.get(
-  "${baseUrl}/api/titulos",
-  params={"grouped": True}
+    "${baseUrl}/api/titulos",
+    params={"grouped": True}
 )
 
-print(res.json())`}
-        </pre>
-      </section>
+print(res.json())`,
+                },
+              ]}
+            />
+          </section>
 
-      {/* ========================= */}
-      {/* NOTES */}
-      {/* ========================= */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-highlight">
-          Observações
-        </h2>
+          <hr className="border-border" />
 
-        <ul className="list-disc pl-5 text-text-secondary space-y-1">
-          <li>Dados atualizados diariamente</li>
-          <li>Datas no formato ISO (YYYY-MM-DD)</li>
-          <li>Página otimizada para scraping e baixa latência</li>
-        </ul>
-      </section>
+          {/* Section 7: Notes */}
+          <section id="observacoes" className="scroll-mt-8 space-y-4">
+            <h2 className="text-2xl font-semibold text-text-highlight">
+              Observações Gerais
+            </h2>
+            <ul className="list-disc pl-5 text-base text-text-secondary space-y-2">
+              <li>Os datasets são particionados por ano de vencimento e atualizados diariamente via automação.</li>
+              <li>Todas as datas retornadas pela API seguem o padrão ISO 8601 (<code className="text-text-primary">YYYY-MM-DD</code>).</li>
+              <li>Os registros históricos dentro de <code className="text-text-primary">items</code> são sempre ordenados da data base mais recente para a mais antiga.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
     </main>
   )
 }

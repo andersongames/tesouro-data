@@ -1,69 +1,48 @@
-import { getTesouroData } from "@/lib/services/tesouro.service"
-import SearchForm from "@/app/components/search/SearchForm"
-import { TesouroTitulo } from "@/lib/types/tesouro.types"
 import { Metadata } from "next"
+import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "Buscar Títulos",
+  title: "Tesouro Data - Início",
   description:
-    "Busque títulos do Tesouro Direto por tipo e vencimento de forma rápida.",
+    "Visualize e pesquise dados de títulos do Tesouro Direto de forma rápida, eficiente e estruturada.",
 }
 
 /**
- * Extract unique "tipo" and "vencimento"
+ * Home page component featuring a centered hero CTA section
+ * directing users to search bonds or explore API documentation.
  */
-function extractOptions(map: Map<string, TesouroTitulo[]>) {
-  const tiposSet = new Set<string>()
-  const vencimentosByTipo = new Map<string, Set<string>>()
-
-  for (const list of map.values()) {
-    if (!list || list.length === 0) continue
-
-    const { tipo, vencimento } = list[0]
-
-    tiposSet.add(tipo)
-
-    if (!vencimentosByTipo.has(tipo)) {
-      vencimentosByTipo.set(tipo, new Set())
-    }
-
-    vencimentosByTipo.get(tipo)!.add(vencimento)
-  }
-
-  /**
-   * Convert Set → Array
-   */
-  const tipos = Array.from(tiposSet).sort()
-
-  const vencimentosMap: Record<string, string[]> = {}
-
-  for (const [tipo, vencimentosSet] of vencimentosByTipo.entries()) {
-    vencimentosMap[tipo] = Array.from(vencimentosSet).sort((a, b) =>
-      b.localeCompare(a)
-    )
-  }
-
-  return { tipos, vencimentosMap }
-}
-
-export default async function SearchPage() {
-  const { map, lastUpdatedAt } = await getTesouroData()
-
-  const { tipos, vencimentosMap } = extractOptions(map)
-
+export default async function HomePage() {
   return (
-    <main className="max-w-5xl mx-auto px-4 w-full">
-      <div className="max-w-xl mx-auto w-full">
-        <h1 className="text-2xl font-semibold text-text-highlight mb-6">
-          Buscar Título do Tesouro
+    <div className="max-w-4xl mx-auto px-4 w-full py-12 text-center">
+      <div className="space-y-6">
+        <span className="inline-block px-3 py-1 text-sm font-medium text-accent bg-blue-500/10 rounded-full border border-accent/20">
+          Dados Oficiais do Tesouro Direto
+        </span>
+        
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-text-highlight">
+          Análise e Consulta de Títulos Públicos com Alta Performance
         </h1>
-
-        <SearchForm tipos={tipos} vencimentosMap={vencimentosMap} />
-
-        <p className="text-xs text-text-secondary mt-6">
-          Última atualização: {new Date(lastUpdatedAt).toLocaleString("pt-BR")}
+        
+        <p className="text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto">
+          Acesse históricos detalhados, taxas e preços unitários dos títulos do Tesouro Nacional de forma simples, com suporte a integração via API e web scraping.
         </p>
+        
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <Link
+            href="/search"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white bg-accent hover:bg-accent-hover rounded-lg shadow-sm transition-colors duration-150"
+          >
+            Buscar Títulos
+          </Link>
+          
+          <Link
+            href="/docs"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 text-base font-medium text-text-primary bg-bg-secondary hover:bg-border/60 border border-border rounded-lg shadow-sm transition-colors duration-150"
+          >
+            Ver Documentação
+          </Link>
+        </div>
       </div>
-    </main>
+    </div>
   )
 }
