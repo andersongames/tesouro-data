@@ -1,2 +1,1 @@
 - Git LFS (Large File Storage): Caso os arquivos JSON acumulados comecem a pesar excessivamente no repositório ao longo dos meses, migrar o versionamento dos arquivos da pasta `datasets/` para o Git LFS do GitHub.
-- Corrigir responsividade na página docs

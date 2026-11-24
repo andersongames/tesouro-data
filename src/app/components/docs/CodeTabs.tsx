@@ -13,7 +13,8 @@ interface CodeTabsProps {
 }
 
 /**
- * Interactive tabbed code block component with copy-to-clipboard functionality.
+ * Interactive tabbed code block component with copy-to-clipboard functionality
+ * and isolated horizontal scrolling.
  */
 export default function CodeTabs({ tabs }: CodeTabsProps) {
   const [activeIndex, setActiveIndex] = useState(0)
@@ -36,10 +37,10 @@ export default function CodeTabs({ tabs }: CodeTabsProps) {
   if (!tabs.length) return null
 
   return (
-    <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+    <div className="w-full max-w-full min-w-0 bg-bg-secondary border border-border rounded-xl overflow-hidden">
       {/* Header with tabs and copy button */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-bg-primary/40">
-        <div className="flex items-center gap-1 overflow-x-auto">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-bg-primary/40">
+        <div className="flex items-center gap-1 overflow-x-auto min-w-0">
           {tabs.map((tab, index) => {
             const isActive = index === activeIndex
 
@@ -51,7 +52,7 @@ export default function CodeTabs({ tabs }: CodeTabsProps) {
                   setActiveIndex(index)
                   setCopied(false)
                 }}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors cursor-pointer ${
                   isActive
                     ? "bg-accent text-white"
                     : "text-text-secondary hover:text-text-highlight hover:bg-border/50"
@@ -66,16 +67,18 @@ export default function CodeTabs({ tabs }: CodeTabsProps) {
         <button
           type="button"
           onClick={handleCopyCode}
-          className="text-xs text-text-secondary hover:text-text-highlight px-2.5 py-1 rounded border border-border hover:bg-border/40 transition-colors cursor-pointer shrink-0 ml-2"
+          className="text-xs text-text-secondary hover:text-text-highlight px-2.5 py-1 rounded border border-border hover:bg-border/40 transition-colors cursor-pointer shrink-0"
         >
           {copied ? "Copiado!" : "Copiar"}
         </button>
       </div>
 
-      {/* Code Display */}
-      <pre className="p-4 text-xs sm:text-sm font-mono text-text-primary overflow-x-auto leading-relaxed">
-        <code>{currentTab.code}</code>
-      </pre>
+      {/* Code Display with isolated horizontal scroll */}
+      <div className="w-full overflow-x-auto">
+        <pre className="p-4 text-xs sm:text-sm font-mono text-text-primary leading-relaxed w-max min-w-full">
+          <code>{currentTab.code}</code>
+        </pre>
+      </div>
     </div>
   )
 }

@@ -55,7 +55,7 @@ export default async function DocsPage() {
   const metadataInfo = readDatasetMetadata()
 
   return (
-    <main className="max-w-6xl w-full mx-auto px-4 py-10">
+    <main className="max-w-6xl w-full mx-auto px-4 py-10 overflow-x-clip">
       {/* Page Header */}
       <header className="space-y-3 pb-8 border-b border-border">
         <span className="inline-block px-3 py-1 text-xs font-medium text-accent bg-blue-500/10 rounded-full border border-accent/20">
@@ -70,12 +70,12 @@ export default async function DocsPage() {
       </header>
 
       {/* Main Content Layout: Sticky Sidebar + Documentation Body */}
-      <div className="flex flex-col md:flex-row gap-8 pt-8 items-start">
+      <div className="flex flex-col md:flex-row gap-8 pt-8 items-start w-full">
         <DocsSidebar sections={DOC_SECTIONS} />
 
-        <div className="flex-1 min-w-0 space-y-12">
+        <div className="flex-1 min-w-0 w-full max-w-full space-y-12">
           {/* Section 1: Overview */}
-          <section id="visao-geral" className="scroll-mt-8 space-y-4">
+          <section id="visao-geral" className="scroll-mt-24 space-y-4">
             <h2 className="text-2xl font-semibold text-text-highlight">
               Visão Geral
             </h2>
@@ -87,7 +87,7 @@ export default async function DocsPage() {
           <hr className="border-border" />
 
           {/* Section 2: Data Source */}
-          <section id="fonte-dados" className="scroll-mt-8 space-y-4">
+          <section id="fonte-dados" className="scroll-mt-24 space-y-4">
             <h2 className="text-2xl font-semibold text-text-highlight">
               Fonte dos Dados
             </h2>
@@ -136,7 +136,7 @@ export default async function DocsPage() {
           <hr className="border-border" />
 
           {/* Section 3: Search & Direct URL */}
-          <section id="busca-direta" className="scroll-mt-8 space-y-4">
+          <section id="busca-direta" className="scroll-mt-24 space-y-4">
             <h2 className="text-2xl font-semibold text-text-highlight">
               Busca e Acesso via URL
             </h2>
@@ -144,12 +144,12 @@ export default async function DocsPage() {
               Você pode utilizar a interface visual na página <code className="text-accent">/search</code> ou acessar diretamente qualquer título através da estrutura de URL amigável:
             </p>
 
-            <code className="block bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
+            <code className="block w-full overflow-x-auto whitespace-nowrap bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
               /titulo/{`{tipo}`}/{`{vencimento}`}
             </code>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-2">
+              <div className="min-w-0 bg-bg-secondary border border-border rounded-xl p-4 space-y-2">
                 <h3 className="text-sm font-semibold text-text-highlight">
                   Formatos de Vencimento Aceitos
                 </h3>
@@ -162,14 +162,14 @@ export default async function DocsPage() {
                 </p>
               </div>
 
-              <div className="bg-bg-secondary border border-border rounded-xl p-4 space-y-2">
+              <div className="min-w-0 bg-bg-secondary border border-border rounded-xl p-4 space-y-2">
                 <h3 className="text-sm font-semibold text-text-highlight">
                   Histórico Completo na Página
                 </h3>
                 <p className="text-sm text-text-secondary">
                   Adicione o parâmetro <code className="text-text-primary">?history=true</code> para exibir a tabela completa de evolução do título:
                 </p>
-                <code className="block bg-bg-primary border border-border rounded p-2 text-xs text-text-primary break-all">
+                <code className="block w-full overflow-x-auto whitespace-nowrap bg-bg-primary border border-border rounded p-2 text-xs text-text-primary">
                   /titulo/Tesouro%20Prefixado/2029-01-01?history=true
                 </code>
               </div>
@@ -179,7 +179,7 @@ export default async function DocsPage() {
           <hr className="border-border" />
 
           {/* Section 4: Web Scraping */}
-          <section id="scraping" className="scroll-mt-8 space-y-4">
+          <section id="scraping" className="scroll-mt-24 space-y-4">
             <h2 className="text-2xl font-semibold text-text-highlight">
               Web Scraping
             </h2>
@@ -187,7 +187,7 @@ export default async function DocsPage() {
               A página de resultados renderiza elementos HTML com identificadores (<code className="text-accent">id</code>) fixos e semânticos, permitindo extração direta sem depender de classes CSS.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {[
                 { id: "#titulo", desc: "Nome do título" },
                 { id: "#vencimento", desc: "Data de vencimento" },
@@ -202,9 +202,9 @@ export default async function DocsPage() {
               ].map((selector) => (
                 <div
                   key={selector.id}
-                  className="bg-bg-secondary border border-border rounded-lg p-3 flex flex-col justify-between"
+                  className="min-w-0 bg-bg-secondary border border-border rounded-lg p-3 flex flex-col justify-between"
                 >
-                  <code className="text-sm font-semibold text-accent">
+                  <code className="text-sm font-semibold text-accent truncate">
                     {selector.id}
                   </code>
                   <span className="text-xs text-text-secondary mt-1">
@@ -243,7 +243,7 @@ console.log({ titulo, taxa });`,
           <hr className="border-border" />
 
           {/* Section 5: API /api/titulo */}
-          <section id="api-titulo" className="scroll-mt-8 space-y-5">
+          <section id="api-titulo" className="scroll-mt-24 space-y-5">
             <div className="flex items-center gap-3">
               <span className="px-2.5 py-1 text-xs font-bold bg-success/15 text-success rounded-md border border-success/30">
                 GET
@@ -257,7 +257,7 @@ console.log({ titulo, taxa });`,
               Retorna a série histórica de preços e taxas para um título específico, acompanhada dos metadados do dataset.
             </p>
 
-            <code className="block bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
+            <code className="block w-full overflow-x-auto whitespace-nowrap bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
               /api/titulo?tipo=Tesouro%20Prefixado&vencimento=2029-01-01
             </code>
 
@@ -285,12 +285,12 @@ console.log({ titulo, taxa });`,
               </ul>
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-highlight">
-                Exemplo de Resposta JSON
-              </h3>
-              <pre className="bg-bg-secondary border border-border rounded-xl p-4 text-xs sm:text-sm font-mono text-text-primary overflow-x-auto leading-relaxed">
-{`{
+            <CodeTabs
+              tabs={[
+                {
+                  label: "Exemplo de Resposta JSON",
+                  language: "json",
+                  code: `{
   "items": [
     {
       "tipo": "Tesouro Prefixado",
@@ -307,9 +307,10 @@ console.log({ titulo, taxa });`,
   "lastUpdatedAt": "2026-04-10T10:00:00.000Z",
   "latestDataBase": "2026-04-10",
   "dataSource": "live"
-}`}
-              </pre>
-            </div>
+}`,
+                },
+              ]}
+            />
 
             <CodeTabs
               tabs={[
@@ -347,7 +348,7 @@ print(res.json())`,
           <hr className="border-border" />
 
           {/* Section 6: API /api/titulos */}
-          <section id="api-titulos" className="scroll-mt-8 space-y-5">
+          <section id="api-titulos" className="scroll-mt-24 space-y-5">
             <div className="flex items-center gap-3">
               <span className="px-2.5 py-1 text-xs font-bold bg-success/15 text-success rounded-md border border-success/30">
                 GET
@@ -361,7 +362,7 @@ print(res.json())`,
               Retorna a listagem completa de títulos disponíveis no dataset, suportando filtros por situação de vencimento e agrupamento por título.
             </p>
 
-            <code className="block bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
+            <code className="block w-full overflow-x-auto whitespace-nowrap bg-bg-secondary border border-border rounded-xl p-4 text-sm font-mono text-text-highlight">
               /api/titulos?maturity=all|future|expired&grouped=true
             </code>
 
@@ -464,7 +465,7 @@ print(res.json())`,
           <hr className="border-border" />
 
           {/* Section 7: Notes */}
-          <section id="observacoes" className="scroll-mt-8 space-y-4">
+          <section id="observacoes" className="scroll-mt-24 space-y-4">
             <h2 className="text-2xl font-semibold text-text-highlight">
               Observações Gerais
             </h2>
